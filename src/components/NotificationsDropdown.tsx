@@ -356,15 +356,15 @@ export function NotificationsDropdown() {
 
       {isOpen ? (
         <>
-          {/* Backdrop overlay with blur */}
+          {/* Invisible backdrop overlay for outside click */}
           <div
-            className="fixed inset-0 z-[125] bg-black/25 backdrop-blur-[2px] animate-in fade-in-0 duration-150"
+            className="fixed inset-0 z-[125]"
             onClick={() => setIsOpen(false)}
           />
 
-          {/* Frosted Glass Notification Panel matching Settings menu */}
-          <div className="fixed inset-x-4 top-16 z-[130] mx-auto w-auto max-w-sm max-h-[85vh] overflow-y-auto sm:inset-auto sm:right-8 sm:top-16 sm:w-96 rounded-2xl border border-border/80 glass-popover p-4 shadow-2xl flex flex-col gap-3 animate-in fade-in-0 zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-2.5 border-b border-border/80">
+          {/* Fixed popup matching MangaReader speed menu (avoids header backdrop-filter nesting bug) */}
+          <div className="fixed inset-x-4 top-16 z-[130] mx-auto w-auto max-w-sm max-h-[80vh] overflow-y-auto sm:inset-auto sm:right-8 sm:top-14 sm:w-96 border border-border/80 glass-popover rounded-2xl shadow-2xl p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-border/80">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-primary" />
                 <h3 className="font-display text-sm font-semibold">
