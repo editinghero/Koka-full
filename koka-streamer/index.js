@@ -712,3 +712,11 @@ function findMangaPath(baseDir, slug, chapter) {
 server.listen(initialConfig.PORT, () => {
   console.log(` Koka Bridge ready on port ${initialConfig.PORT}`);
 });
+
+process.on("uncaughtException", (err) => {
+  console.error("[STREAMER ERROR]", err.message);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[STREAMER REJECTION]", reason);
+});
