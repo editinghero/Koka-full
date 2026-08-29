@@ -172,6 +172,23 @@ function isDirEntry(entry: Dirent, parentPath: string): boolean {
   return false;
 }
 
+/**
+ * Returns true if the dirent is a real file OR a symlink that resolves to a
+ * file. Needed because symlinked files return isSymbolicLink()=true and
+ * isFile()=false on Windows junction / Unix symlink scenarios.
+ */
+function isFileEntry(entry: Dirent, parentPath: string): boolean {
+  if (entry.isFile()) return true;
+  if (entry.isSymbolicLink()) {
+    try {
+      return statSync(join(parentPath, entry.name)).isFile();
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 function cleanTitle(folderName: string): string {
   return folderName
     .replace(/\[.*?\]|\(.*?\)/g, "")
@@ -199,7 +216,7 @@ function scanAnimeTitleFolder(
   for (const item of entries) {
     if (item.name.startsWith(".")) continue;
 
-    if (item.isFile()) {
+    if (isFileEntry(item, titlePath)) {
       const ext = extname(item.name).toLowerCase();
       if (VIDEO_EXTENSIONS.has(ext)) {
         rootVideos.push(item.name);
@@ -257,7 +274,7 @@ function scanAnimeTitleFolder(
 
       for (const item of sEntries) {
         if (item.name.startsWith(".")) continue;
-        if (item.isFile()) {
+        if (isFileEntry(item, dir.path)) {
           const ext = extname(item.name).toLowerCase();
           if (VIDEO_EXTENSIONS.has(ext)) {
             sVideos.push(item.name);
@@ -360,7 +377,7 @@ function scanMangaTitleFolder(
   for (const item of entries) {
     if (item.name.startsWith(".")) continue;
 
-    if (item.isFile()) {
+    if (isFileEntry(item, titlePath)) {
       const ext = extname(item.name).toLowerCase();
       if (ARCHIVE_EXTENSIONS.has(ext)) {
         const format = (
@@ -377,14 +394,14 @@ function scanMangaTitleFolder(
           format,
         });
       }
-    } else if (item.isDirectory()) {
+    } else if (isDirEntry(item, titlePath)) {
       // Subdirectory containing images (e.g. Chapter 1 folder)
       const subPath = join(titlePath, item.name);
       try {
         const subFiles = readdirSync(subPath, { withFileTypes: true });
         const imageCount = subFiles.filter(
           (f) =>
-            f.isFile() && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
+            isFileEntry(f, subPath) && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
         ).length;
 
         if (imageCount > 0) {
