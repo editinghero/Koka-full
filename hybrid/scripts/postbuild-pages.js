@@ -16,8 +16,22 @@ console.log("--> Preparing Cloudflare Pages _worker.js entry point...");
 
 if (fs.existsSync(serverJsPath)) {
   fs.copyFileSync(serverJsPath, clientServerJsPath);
-  fs.writeFileSync(workerJsPath, `export { default } from "./server.js";\n`);
-  console.log("✓ Created dist/client/server.js and dist/client/_worker.js");
+  const workerContent = `import server from "./server.js";
+
+export default {
+  async fetch(request, env, ctx) {
+    if (env) {
+      globalThis.__CF_ENV__ = env;
+      if (env.DB) {
+        globalThis.__D1_DB__ = env.DB;
+      }
+    }
+    return server.fetch(request, env, ctx);
+  }
+};
+`;
+  fs.writeFileSync(workerJsPath, workerContent);
+  console.log("✓ Created dist/client/server.js and dist/client/_worker.js with D1 environment wrapper");
 } else {
   console.error("❌ dist/server/server.js not found!");
   process.exit(1);

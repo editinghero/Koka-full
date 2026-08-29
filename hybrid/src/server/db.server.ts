@@ -8,12 +8,18 @@ let initialized = false;
 export function getDb(): Client {
   if (dbInstance) return dbInstance;
 
-  const dataDir = join(process.cwd(), ".data");
-  if (!existsSync(dataDir)) {
-    mkdirSync(dataDir, { recursive: true });
+  try {
+    const dataDir = join(process.cwd(), ".data");
+    if (typeof existsSync === "function" && typeof mkdirSync === "function") {
+      if (!existsSync(dataDir)) {
+        mkdirSync(dataDir, { recursive: true });
+      }
+    }
+  } catch {
+    /* ignore in Cloudflare Pages edge runtime */
   }
 
-  const dbPath = join(dataDir, "koka.db").replace(/\\/g, "/");
+  const dbPath = join(process.cwd(), ".data", "koka.db").replace(/\\/g, "/");
   const client = createClient({
     url: `file:${dbPath}`,
   });

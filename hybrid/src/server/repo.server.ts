@@ -11,6 +11,7 @@ import {
   type Note,
 } from "@/lib/types";
 import { ensureDbInitialized } from "./db.server";
+import type { D1Database } from "./d1.server";
 
 export type StoredUser = {
   id: string;
@@ -401,10 +402,331 @@ function sqliteRepo(): Repo {
   };
 }
 
-export function getRepo(): Repo {
-  return sqliteRepo();
+function d1Repo(d1: D1Database): Repo {
+  return {
+    async userByEmail(email: string): Promise<StoredUser | null> {
+      const row = await d1
+        .prepare("SELECT * FROM users WHERE email = ? LIMIT 1")
+        .bind(email)
+        .first<Record<string, unknown>>();
+      if (!row) return null;
+      return {
+        id: String(row["id"]),
+        email: String(row["email"]),
+        name: String(row["name"]),
+        password_hash: String(row["password_hash"]),
+        created_at: Number(row["created_at"]),
+      };
+    },
+    async userById(id: string): Promise<StoredUser | null> {
+      const row = await d1
+        .prepare("SELECT * FROM users WHERE id = ? LIMIT 1")
+        .bind(id)
+        .first<Record<string, unknown>>();
+      if (!row) return null;
+      return {
+        id: String(row["id"]),
+        email: String(row["email"]),
+        name: String(row["name"]),
+        password_hash: String(row["password_hash"]),
+        created_at: Number(row["created_at"]),
+      };
+    },
+    async createUser(user: StoredUser): Promise<void> {
+      await d1
+        .prepare(
+          "INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(
+          user.id,
+          user.email,
+          user.name,
+          user.password_hash,
+          user.created_at,
+        )
+        .run();
+    },
+    async updateUserName(id: string, name: string): Promise<void> {
+      await d1
+        .prepare("UPDATE users SET name = ? WHERE id = ?")
+        .bind(name, id)
+        .run();
+    },
+    async updateUserPassword(id: string, hash: string): Promise<void> {
+      await d1
+        .prepare("UPDATE users SET password_hash = ? WHERE id = ?")
+        .bind(hash, id)
+        .run();
+    },
+
+    async getSettings(userId: string): Promise<SettingsRow> {
+      const row = await d1
+        .prepare("SELECT * FROM settings WHERE user_id = ? LIMIT 1")
+        .bind(userId)
+        .first<Record<string, unknown>>();
+      if (!row) return DEFAULT_SETTINGS_ROW;
+      return {
+        gemini_key: row["gemini_key"] ? String(row["gemini_key"]) : "",
+        model: row["model"] ? String(row["model"]) : DEFAULT_SETTINGS_ROW.model,
+        anilist_user: row["anilist_user"] ? String(row["anilist_user"]) : "",
+        spoiler_free:
+          row["spoiler_free"] !== null && row["spoiler_free"] !== undefined
+            ? Number(row["spoiler_free"])
+            : 1,
+        theme: row["theme"] ? String(row["theme"]) : "dark",
+        light_theme: row["light_theme"] ? String(row["light_theme"]) : "paper",
+        dark_theme: row["dark_theme"] ? String(row["dark_theme"]) : "koka",
+        media_mode: row["media_mode"] ? String(row["media_mode"]) : "ANIME",
+        anime_path: row["anime_path"] ? String(row["anime_path"]) : "./anime",
+        manga_path: row["manga_path"] ? String(row["manga_path"]) : "./manga",
+      };
+    },
+    async saveSettings(userId: string, row: SettingsRow): Promise<void> {
+      await d1
+        .prepare(
+          `INSERT INTO settings (user_id, gemini_key, model, anilist_user, spoiler_free, theme, light_theme, dark_theme, media_mode, anime_path, manga_path, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(user_id) DO UPDATE SET
+             gemini_key = excluded.gemini_key,
+             model = excluded.model,
+             anilist_user = excluded.anilist_user,
+             spoiler_free = excluded.spoiler_free,
+             theme = excluded.theme,
+             light_theme = excluded.light_theme,
+             dark_theme = excluded.dark_theme,
+             media_mode = excluded.media_mode,
+             anime_path = excluded.anime_path,
+             manga_path = excluded.manga_path,
+             updated_at = excluded.updated_at`,
+        )
+        .bind(
+          userId,
+          row.gemini_key,
+          row.model,
+          row.anilist_user,
+          row.spoiler_free,
+          row.theme,
+          row.light_theme,
+          row.dark_theme,
+          row.media_mode,
+          row.anime_path ?? "./anime",
+          row.manga_path ?? "./manga",
+          Date.now(),
+        )
+        .run();
+    },
+
+    async listLibrary(userId: string): Promise<LibraryEntry[]> {
+      const res = await d1
+        .prepare("SELECT * FROM library_entries WHERE user_id = ?")
+        .bind(userId)
+        .all<Record<string, unknown>>();
+      return (res.results || []).map((r) => ({
+        media: JSON.parse(String(r["media"])),
+        status: r["status"] as LibraryEntry["status"],
+        progress: Number(r["progress"] ?? 0),
+        score:
+          r["score"] !== null && r["score"] !== undefined
+            ? Number(r["score"])
+            : null,
+        favorite: Number(r["favorite"]) === 1,
+        startedAt: r["started_at"] ? String(r["started_at"]) : null,
+        completedAt: r["completed_at"] ? String(r["completed_at"]) : null,
+        repeat:
+          r["repeat_count"] !== null && r["repeat_count"] !== undefined
+            ? Number(r["repeat_count"])
+            : null,
+        tags: normalizeTags(JSON.parse(String(r["tags"] ?? "[]")) as string[]),
+        customLists: normalizeTags(
+          JSON.parse(String(r["custom_lists"] ?? "[]")) as string[],
+        ),
+        updatedAt: Number(r["updated_at"] ?? Date.now()),
+        addedAt: Number(r["added_at"] ?? Date.now()),
+      }));
+    },
+    async upsertEntries(
+      userId: string,
+      entries: LibraryEntry[],
+    ): Promise<void> {
+      if (entries.length === 0) return;
+      const stmts = entries.map((e) =>
+        d1
+          .prepare(
+            `INSERT INTO library_entries (user_id, media_type, media_id, status, progress, score, favorite, started_at, completed_at, repeat_count, tags, custom_lists, media, updated_at, added_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(user_id, media_type, media_id) DO UPDATE SET
+               status = excluded.status,
+               progress = excluded.progress,
+               score = excluded.score,
+               favorite = excluded.favorite,
+               started_at = excluded.started_at,
+               completed_at = excluded.completed_at,
+               repeat_count = excluded.repeat_count,
+               tags = excluded.tags,
+               custom_lists = excluded.custom_lists,
+               media = excluded.media,
+               updated_at = excluded.updated_at`,
+          )
+          .bind(
+            userId,
+            typeOf(e),
+            e.media.id,
+            e.status,
+            e.progress ?? 0,
+            e.score ?? null,
+            e.favorite ? 1 : 0,
+            e.startedAt ?? null,
+            e.completedAt ?? null,
+            e.repeat ?? 0,
+            JSON.stringify(normalizeTags(e.tags)),
+            JSON.stringify(normalizeTags(e.customLists)),
+            JSON.stringify(e.media),
+            e.updatedAt ?? Date.now(),
+            e.addedAt ?? Date.now(),
+          ),
+      );
+      await d1.batch(stmts);
+    },
+    async deleteEntry(
+      userId: string,
+      type: MediaType,
+      mediaId: number,
+    ): Promise<void> {
+      await d1
+        .prepare(
+          "DELETE FROM library_entries WHERE user_id = ? AND media_type = ? AND media_id = ?",
+        )
+        .bind(userId, type, mediaId)
+        .run();
+    },
+    async replaceLibrary(
+      userId: string,
+      entries: LibraryEntry[],
+      types: MediaType[],
+    ): Promise<void> {
+      const deleteStmts = types.map((t) =>
+        d1
+          .prepare(
+            "DELETE FROM library_entries WHERE user_id = ? AND media_type = ?",
+          )
+          .bind(userId, t),
+      );
+      await d1.batch(deleteStmts);
+      await this.upsertEntries(userId, entries);
+    },
+
+    async listNotes(userId: string): Promise<Note[]> {
+      const res = await d1
+        .prepare("SELECT * FROM notes WHERE user_id = ?")
+        .bind(userId)
+        .all<Record<string, unknown>>();
+      return (res.results || []).map((r) => ({
+        id: Number(r["id"]),
+        animeId: Number(r["media_id"]),
+        mediaType: r["media_type"] === "MANGA" ? "MANGA" : "ANIME",
+        title: String(r["title"] ?? ""),
+        body: String(r["body"] ?? ""),
+        tags: normalizeTags(JSON.parse(String(r["tags"] ?? "[]")) as string[]),
+        updatedAt: Number(r["updated_at"] ?? Date.now()),
+      }));
+    },
+    async saveNotes(userId: string, notes: Note[]): Promise<void> {
+      if (notes.length === 0) return;
+      const stmts = notes.map((n) =>
+        d1
+          .prepare(
+            `INSERT INTO notes (user_id, media_type, media_id, title, body, tags, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(user_id, media_type, media_id) DO UPDATE SET
+               title = excluded.title,
+               body = excluded.body,
+               tags = excluded.tags,
+               updated_at = excluded.updated_at`,
+          )
+          .bind(
+            userId,
+            noteTypeOf(n),
+            n.animeId,
+            n.title,
+            n.body,
+            JSON.stringify(normalizeTags(n.tags)),
+            n.updatedAt ?? Date.now(),
+          ),
+      );
+      await d1.batch(stmts);
+    },
+    async deleteNote(
+      userId: string,
+      type: MediaType,
+      mediaId: number,
+    ): Promise<void> {
+      await d1
+        .prepare(
+          "DELETE FROM notes WHERE user_id = ? AND media_type = ? AND media_id = ?",
+        )
+        .bind(userId, type, mediaId)
+        .run();
+    },
+    async replaceNotes(
+      userId: string,
+      notes: Note[],
+      types: MediaType[],
+    ): Promise<void> {
+      const deleteStmts = types.map((t) =>
+        d1
+          .prepare("DELETE FROM notes WHERE user_id = ? AND media_type = ?")
+          .bind(userId, t),
+      );
+      await d1.batch(deleteStmts);
+      await this.saveNotes(userId, notes);
+    },
+
+    async logImport(
+      userId: string,
+      entry: { source: string; mode: string; count: number },
+    ): Promise<void> {
+      await d1
+        .prepare(
+          "INSERT INTO import_log (user_id, source, mode, count, created_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(userId, entry.source, entry.mode, entry.count, Date.now())
+        .run();
+    },
+    async listImportLog(userId: string): Promise<ImportLogRow[]> {
+      const res = await d1
+        .prepare(
+          "SELECT id, source, mode, count, created_at FROM import_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 20",
+        )
+        .bind(userId)
+        .all<Record<string, unknown>>();
+      return (res.results || []).map((r) => ({
+        id: Number(r["id"]),
+        source: String(r["source"]),
+        mode: String(r["mode"]),
+        count: Number(r["count"]),
+        created_at: Number(r["created_at"]),
+      }));
+    },
+  };
+}
+
+export function getD1Database(): D1Database | null {
+  const g = globalThis as unknown as {
+    __D1_DB__?: D1Database;
+    __CF_ENV__?: { DB?: D1Database };
+    DB?: D1Database;
+  };
+  return g.__D1_DB__ || g.__CF_ENV__?.DB || g.DB || null;
 }
 
 export function usingD1(): boolean {
-  return false;
+  return getD1Database() !== null;
+}
+
+export function getRepo(): Repo {
+  const d1 = getD1Database();
+  if (d1) {
+    return d1Repo(d1);
+  }
+  return sqliteRepo();
 }
