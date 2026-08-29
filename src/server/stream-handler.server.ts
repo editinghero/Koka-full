@@ -8,6 +8,35 @@ import {
   getMimeType,
 } from "./media.server";
 import { isSafePath } from "./path-guard.server";
+
+const ALLOWED_VIDEO_EXTS = new Set([
+  ".mp4",
+  ".mkv",
+  ".webm",
+  ".avi",
+  ".mov",
+  ".flv",
+  ".ts",
+  ".m4v",
+]);
+const ALLOWED_SUBTITLE_EXTS = new Set([".vtt", ".srt", ".ass", ".ssa"]);
+
+function isMaliciousPathSegment(segment: string | null): boolean {
+  if (!segment) return false;
+  try {
+    const decoded = decodeURIComponent(segment);
+    if (decoded.includes("\0")) return true;
+    if (decoded.includes("..")) return true;
+    if (/^[a-zA-Z]:/i.test(decoded)) return true;
+    if (decoded.startsWith("/") || decoded.startsWith("\\")) return true;
+    if (/^\.(env|git|ssh|config|aws|bash|npm|profile|htaccess)/i.test(decoded))
+      return true;
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export async function handleMediaStreamRequest(
   request: Request,
 ): Promise<Response | null> {
@@ -20,8 +49,19 @@ export async function handleMediaStreamRequest(
     const season = url.searchParams.get("season");
     const file = url.searchParams.get("file");
 
-    if (!slug || !file) {
-      return new Response("Missing slug or file parameter", { status: 400 });
+    if (
+      !slug ||
+      !file ||
+      isMaliciousPathSegment(slug) ||
+      isMaliciousPathSegment(season) ||
+      isMaliciousPathSegment(file)
+    ) {
+      return new Response("Invalid or missing parameters", { status: 400 });
+    }
+
+    const reqExt = extname(file).toLowerCase();
+    if (!ALLOWED_VIDEO_EXTS.has(reqExt)) {
+      return new Response("Forbidden: Invalid video file type", { status: 403 });
     }
 
     const anime = findAnimeBySlug(slug);
@@ -104,8 +144,13 @@ export async function handleMediaStreamRequest(
     const slug = url.searchParams.get("slug");
     const file = url.searchParams.get("file");
 
-    if (!slug || !file) {
-      return new Response("Missing parameters", { status: 400 });
+    if (!slug || !file || isMaliciousPathSegment(slug) || isMaliciousPathSegment(file)) {
+      return new Response("Invalid or missing parameters", { status: 400 });
+    }
+
+    const ext = extname(file).toLowerCase();
+    if (!ALLOWED_SUBTITLE_EXTS.has(ext)) {
+      return new Response("Forbidden: Invalid subtitle format", { status: 403 });
     }
 
     const anime = findAnimeBySlug(slug);
@@ -122,7 +167,6 @@ export async function handleMediaStreamRequest(
     }
 
     const content = readFileSync(subPath, "utf-8");
-    const ext = extname(subPath).toLowerCase();
     const isVtt = ext === ".vtt";
 
     return new Response(content, {
@@ -142,8 +186,14 @@ export async function handleMediaStreamRequest(
     const pageStr = url.searchParams.get("page");
     const pageIndex = pageStr ? parseInt(pageStr, 10) : 0;
 
-    if (!slug || !chapter || isNaN(pageIndex)) {
-      return new Response("Missing parameters", { status: 400 });
+    if (
+      !slug ||
+      !chapter ||
+      isMaliciousPathSegment(slug) ||
+      isMaliciousPathSegment(chapter) ||
+      isNaN(pageIndex)
+    ) {
+      return new Response("Invalid or missing parameters", { status: 400 });
     }
 
     try {

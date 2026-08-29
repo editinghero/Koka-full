@@ -59,7 +59,24 @@ const MIME_TYPES = {
   ".heif": "image/heif",
 };
 
-const IMAGE_EXTENSIONS_REGEX = /\.(jpe?g|png|webp|avif|gif|bmp|tiff?|jxl|heic|heif)$/i;
+const ALLOWED_VIDEO_EXTS = new Set([".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".ts", ".m4v"]);
+const ALLOWED_SUBTITLE_EXTS = new Set([".vtt", ".srt", ".ass", ".ssa"]);
+const ALLOWED_MANGA_ARCHIVE_EXTS = new Set([".cbz", ".zip", ".cbr", ".rar"]);
+
+function isMaliciousPathSegment(segment) {
+  if (!segment || typeof segment !== "string") return false;
+  try {
+    const decoded = decodeURIComponent(segment);
+    if (decoded.includes("\0")) return true;
+    if (decoded.includes("..")) return true;
+    if (/^[a-zA-Z]:/i.test(decoded)) return true;
+    if (decoded.startsWith("/") || decoded.startsWith("\\")) return true;
+    if (/^\.(env|git|ssh|config|aws|bash|npm|profile|htaccess|htpasswd)/i.test(path.basename(decoded))) return true;
+    return false;
+  } catch {
+    return true; // malformed URI encoding is treated as hostile
+  }
+}
 
 function isSafePath(base, target) {
   if (!base || !target) return false;
@@ -89,6 +106,30 @@ function naturalSortPages(a, b) {
     return numA - numB;
   }
   return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function isDirEntry(entry, parentPath) {
+  if (entry.isDirectory()) return true;
+  if (entry.isSymbolicLink()) {
+    try {
+      return fs.statSync(path.join(parentPath, entry.name)).isDirectory();
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+function isFileEntry(entry, parentPath) {
+  if (entry.isFile()) return true;
+  if (entry.isSymbolicLink()) {
+    try {
+      return fs.statSync(path.join(parentPath, entry.name)).isFile();
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 function naturalSort(a, b) {
@@ -161,7 +202,7 @@ const server = http.createServer((req, res) => {
 
     try {
       if (fs.existsSync(ANIME_PATH)) {
-        const animeDirs = fs.readdirSync(ANIME_PATH, { withFileTypes: true }).filter((d) => d.isDirectory());
+        const animeDirs = fs.readdirSync(ANIME_PATH, { withFileTypes: true }).filter((d) => isDirEntry(d, ANIME_PATH));
         animeList = animeDirs.map((dir) => {
           const folderPath = path.join(ANIME_PATH, dir.name);
           const slug = dir.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -169,13 +210,13 @@ const server = http.createServer((req, res) => {
           
           try {
             const subItems = fs.readdirSync(folderPath, { withFileTypes: true });
-            const subDirs = subItems.filter((d) => d.isDirectory()).sort((a, b) => naturalSort(a.name, b.name));
+            const subDirs = subItems.filter((d) => isDirEntry(d, folderPath)).sort((a, b) => naturalSort(a.name, b.name));
             
             if (subDirs.length > 0) {
               seasons = subDirs.map((s) => {
                 const sPath = path.join(folderPath, s.name);
                 const sFiles = fs.readdirSync(sPath, { withFileTypes: true })
-                  .filter((f) => f.isFile() && /\.(mp4|mkv|webm|avi|mov)$/i.test(f.name))
+                  .filter((f) => isFileEntry(f, sPath) && /\.(mp4|mkv|webm|avi|mov|flv|ts|m4v)$/i.test(f.name))
                   .map((f) => ({
                     file: f.name,
                     label: f.name.replace(/\.[^/.]+$/, ""),
@@ -188,7 +229,7 @@ const server = http.createServer((req, res) => {
               });
             } else {
               const rootFiles = subItems
-                .filter((f) => f.isFile() && /\.(mp4|mkv|webm|avi|mov)$/i.test(f.name))
+                .filter((f) => isFileEntry(f, folderPath) && /\.(mp4|mkv|webm|avi|mov|flv|ts|m4v)$/i.test(f.name))
                 .map((f) => ({
                   file: f.name,
                   label: f.name.replace(/\.[^/.]+$/, ""),
@@ -217,7 +258,7 @@ const server = http.createServer((req, res) => {
 
       if (fs.existsSync(MANGA_PATH)) {
         const rootEntries = fs.readdirSync(MANGA_PATH, { withFileTypes: true });
-        const mangaDirs = rootEntries.filter((d) => d.isDirectory());
+        const mangaDirs = rootEntries.filter((d) => isDirEntry(d, MANGA_PATH));
         
         // 1. Scan manga subdirectories
         for (const dir of mangaDirs) {
@@ -230,7 +271,7 @@ const server = http.createServer((req, res) => {
             
             // Check for cbz / zip files
             const archiveChapters = subItems
-              .filter((f) => f.isFile() && /\.(cbz|zip)$/i.test(f.name))
+              .filter((f) => isFileEntry(f, folderPath) && /\.(cbz|zip)$/i.test(f.name))
               .map((f) => ({
                 file: f.name,
                 label: f.name.replace(/\.[^/.]+$/, ""),
@@ -241,7 +282,7 @@ const server = http.createServer((req, res) => {
 
             // Check for chapter subdirectories
             const folderChapters = subItems
-              .filter((d) => d.isDirectory() && !d.name.startsWith("."))
+              .filter((d) => isDirEntry(d, folderPath) && !d.name.startsWith("."))
               .map((d) => ({
                 file: d.name,
                 label: d.name,
@@ -251,7 +292,7 @@ const server = http.createServer((req, res) => {
               .sort((a, b) => naturalSort(a.file, b.file));
 
             // Check for direct loose images in series directory
-            const looseImages = subItems.filter((f) => f.isFile() && /\.(jpg|jpeg|png|webp|gif)$/i.test(f.name));
+            const looseImages = subItems.filter((f) => isFileEntry(f, folderPath) && /\.(jpg|jpeg|png|webp|gif|avif|bmp|tiff|jxl|heic)$/i.test(f.name));
 
             if (archiveChapters.length > 0) {
               chapters = archiveChapters;
@@ -281,7 +322,7 @@ const server = http.createServer((req, res) => {
         }
 
         // 2. Scan root manga files (.cbz / .zip files directly in MANGA_PATH)
-        const rootArchives = rootEntries.filter((f) => f.isFile() && /\.(cbz|zip)$/i.test(f.name));
+        const rootArchives = rootEntries.filter((f) => isFileEntry(f, MANGA_PATH) && /\.(cbz|zip)$/i.test(f.name));
         for (const file of rootArchives) {
           const baseName = file.name.replace(/\.[^/.]+$/, "");
           const slug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -318,6 +359,11 @@ const server = http.createServer((req, res) => {
 
 function findVideoFilePath(baseDir, slug, season, file) {
   if (!baseDir || !fs.existsSync(baseDir)) return null;
+  if (!slug || !file) return null;
+  if (isMaliciousPathSegment(slug) || isMaliciousPathSegment(season) || isMaliciousPathSegment(file)) return null;
+
+  const reqExt = path.extname(file).toLowerCase();
+  if (!ALLOWED_VIDEO_EXTS.has(reqExt)) return null;
 
   // 1. Direct path check
   const directPath = path.join(baseDir, slug, file);
@@ -331,7 +377,7 @@ function findVideoFilePath(baseDir, slug, season, file) {
   // 2. Scan directory to match folder by exact name or normalized slug
   try {
     const entries = fs.readdirSync(baseDir, { withFileTypes: true });
-    const targetFolder = entries.find((e) => e.isDirectory() && (
+    const targetFolder = entries.find((e) => isDirEntry(e, baseDir) && (
       e.name === slug ||
       e.name.toLowerCase() === slug.toLowerCase() ||
       e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug.toLowerCase()
@@ -353,13 +399,13 @@ function findVideoFilePath(baseDir, slug, season, file) {
       // Scan all subdirectories (seasons)
       const subEntries = fs.readdirSync(folderPath, { withFileTypes: true });
       for (const sub of subEntries) {
-        if (sub.isDirectory()) {
+        if (isDirEntry(sub, folderPath)) {
           const subPath = path.join(folderPath, sub.name, file);
           if (fs.existsSync(subPath) && isSafePath(baseDir, subPath)) return subPath;
 
           // Case-insensitive file match
           const nestedFiles = fs.readdirSync(path.join(folderPath, sub.name), { withFileTypes: true });
-          const match = nestedFiles.find((f) => f.isFile() && f.name.toLowerCase() === file.toLowerCase());
+          const match = nestedFiles.find((f) => isFileEntry(f, path.join(folderPath, sub.name)) && f.name.toLowerCase() === file.toLowerCase());
           if (match) {
             const resolved = path.join(folderPath, sub.name, match.name);
             if (isSafePath(baseDir, resolved)) return resolved;
@@ -368,7 +414,7 @@ function findVideoFilePath(baseDir, slug, season, file) {
       }
 
       // Root files case-insensitive match
-      const rootMatch = subEntries.find((f) => f.isFile() && f.name.toLowerCase() === file.toLowerCase());
+      const rootMatch = subEntries.find((f) => isFileEntry(f, folderPath) && f.name.toLowerCase() === file.toLowerCase());
       if (rootMatch) {
         const resolved = path.join(folderPath, rootMatch.name);
         if (isSafePath(baseDir, resolved)) return resolved;
@@ -387,24 +433,30 @@ function findVideoFilePath(baseDir, slug, season, file) {
     const file = parsedUrl.searchParams.get("file");
     const season = parsedUrl.searchParams.get("season");
 
-    if (!slug || !file) {
+    if (!slug || !file || isMaliciousPathSegment(slug) || isMaliciousPathSegment(file) || isMaliciousPathSegment(season)) {
       res.writeHead(400, { "Content-Type": "text/plain" });
-      res.end("Missing slug or file parameter");
+      res.end("Invalid or missing parameters");
       return;
     }
 
     const targetPath = findVideoFilePath(ANIME_PATH, slug, season, file);
 
-    if (!targetPath || !fs.existsSync(targetPath)) {
+    if (!targetPath || !fs.existsSync(targetPath) || !isSafePath(ANIME_PATH, targetPath)) {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("Video file not found");
+      return;
+    }
+
+    const ext = path.extname(targetPath).toLowerCase();
+    if (!ALLOWED_VIDEO_EXTS.has(ext)) {
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      res.end("Forbidden: Invalid video file type");
       return;
     }
 
     const stat = fs.statSync(targetPath);
     const fileSize = stat.size;
     const range = req.headers.range;
-    const ext = path.extname(targetPath).toLowerCase();
     const contentType = MIME_TYPES[ext] || "video/mp4";
 
     if (range) {
@@ -429,6 +481,56 @@ function findVideoFilePath(baseDir, slug, season, file) {
       });
       fs.createReadStream(targetPath).pipe(res);
     }
+    return;
+  }
+
+  // 4b. Subtitle Stream Endpoint
+  if (pathname === "/api/stream/subtitle") {
+    const slug = parsedUrl.searchParams.get("slug");
+    const file = parsedUrl.searchParams.get("file");
+
+    if (!slug || !file || isMaliciousPathSegment(slug) || isMaliciousPathSegment(file)) {
+      res.writeHead(400, { "Content-Type": "text/plain" });
+      res.end("Invalid or missing parameters");
+      return;
+    }
+
+    const ext = path.extname(file).toLowerCase();
+    if (!ALLOWED_SUBTITLE_EXTS.has(ext)) {
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      res.end("Forbidden: Invalid subtitle format");
+      return;
+    }
+
+    const targetFolder = fs.existsSync(ANIME_PATH)
+      ? fs.readdirSync(ANIME_PATH, { withFileTypes: true }).find((e) => isDirEntry(e, ANIME_PATH) && (
+          e.name === slug ||
+          e.name.toLowerCase() === slug.toLowerCase() ||
+          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug.toLowerCase()
+        ))
+      : null;
+
+    if (!targetFolder) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Anime not found");
+      return;
+    }
+
+    const folderPath = path.join(ANIME_PATH, targetFolder.name);
+    const subPath = path.join(folderPath, file);
+
+    if (!fs.existsSync(subPath) || !isSafePath(ANIME_PATH, subPath)) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Subtitle file not found");
+      return;
+    }
+
+    const content = fs.readFileSync(subPath, "utf-8");
+    res.writeHead(200, {
+      "Content-Type": ext === ".vtt" ? "text/vtt; charset=utf-8" : "text/plain; charset=utf-8",
+      "Cache-Control": "public, max-age=3600",
+    });
+    res.end(content);
     return;
   }
 
@@ -524,28 +626,29 @@ function extractZipEntry(buffer, entry) {
 
 function findMangaPath(baseDir, slug, chapter) {
   if (!baseDir || !fs.existsSync(baseDir)) return null;
+  if (isMaliciousPathSegment(slug) || isMaliciousPathSegment(chapter)) return null;
 
   // 1. Direct path check
   if (slug && chapter) {
     const directPath = path.join(baseDir, slug, chapter);
-    if (fs.existsSync(directPath)) return directPath;
+    if (fs.existsSync(directPath) && isSafePath(baseDir, directPath)) return directPath;
   }
   if (slug) {
     const directSlug = path.join(baseDir, slug);
-    if (fs.existsSync(directSlug)) {
+    if (fs.existsSync(directSlug) && isSafePath(baseDir, directSlug)) {
       if (!chapter || chapter === "Chapter 1" || chapter === "") return directSlug;
     }
   }
   if (chapter) {
     const directChapter = path.join(baseDir, chapter);
-    if (fs.existsSync(directChapter)) return directChapter;
+    if (fs.existsSync(directChapter) && isSafePath(baseDir, directChapter)) return directChapter;
   }
 
   try {
     const entries = fs.readdirSync(baseDir, { withFileTypes: true });
 
     // Check if root archive matches slug or chapter
-    const rootArchive = entries.find((e) => e.isFile() && (
+    const rootArchive = entries.find((e) => isFileEntry(e, baseDir) && (
       e.name === chapter ||
       e.name.toLowerCase() === (chapter || "").toLowerCase() ||
       e.name === slug ||
@@ -553,10 +656,13 @@ function findMangaPath(baseDir, slug, chapter) {
       e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase() ||
       e.name.replace(/\.[^/.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase()
     ));
-    if (rootArchive) return path.join(baseDir, rootArchive.name);
+    if (rootArchive) {
+      const p = path.join(baseDir, rootArchive.name);
+      if (isSafePath(baseDir, p)) return p;
+    }
 
     // Find matching series folder
-    const targetFolder = entries.find((e) => e.isDirectory() && (
+    const targetFolder = entries.find((e) => isDirEntry(e, baseDir) && (
       e.name === slug ||
       e.name.toLowerCase() === (slug || "").toLowerCase() ||
       e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase()
@@ -564,10 +670,12 @@ function findMangaPath(baseDir, slug, chapter) {
 
     if (targetFolder) {
       const folderPath = path.join(baseDir, targetFolder.name);
-      if (!chapter || chapter === "Chapter 1" || chapter === "") return folderPath;
+      if (!chapter || chapter === "Chapter 1" || chapter === "") {
+        if (isSafePath(baseDir, folderPath)) return folderPath;
+      }
 
       const inChapter = path.join(folderPath, chapter);
-      if (fs.existsSync(inChapter)) return inChapter;
+      if (fs.existsSync(inChapter) && isSafePath(baseDir, inChapter)) return inChapter;
 
       const subEntries = fs.readdirSync(folderPath, { withFileTypes: true });
       const subMatch = subEntries.find((s) => (
@@ -576,11 +684,14 @@ function findMangaPath(baseDir, slug, chapter) {
         s.name.replace(/\.[^/.]+$/, "").toLowerCase() === chapter.replace(/\.[^/.]+$/, "").toLowerCase() ||
         s.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === chapter.toLowerCase().replace(/[^a-z0-9]+/g, "-")
       ));
-      if (subMatch) return path.join(folderPath, subMatch.name);
+      if (subMatch) {
+        const p = path.join(folderPath, subMatch.name);
+        if (isSafePath(baseDir, p)) return p;
+      }
 
       // If no subfolder/archive matched, but folder has loose images, treat folder itself as the chapter
-      const hasImages = subEntries.some((f) => f.isFile() && IMAGE_EXTENSIONS_REGEX.test(f.name));
-      if (hasImages) return folderPath;
+      const hasImages = subEntries.some((f) => isFileEntry(f, folderPath) && IMAGE_EXTENSIONS_REGEX.test(f.name));
+      if (hasImages && isSafePath(baseDir, folderPath)) return folderPath;
     }
   } catch (err) {
     console.warn("Manga path search error:", err.message);
@@ -594,14 +705,14 @@ function findMangaPath(baseDir, slug, chapter) {
     const slug = parsedUrl.searchParams.get("slug");
     const chapter = parsedUrl.searchParams.get("chapter");
 
-    if (!slug) {
+    if (!slug || isMaliciousPathSegment(slug) || isMaliciousPathSegment(chapter)) {
       res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Missing slug parameter" }));
+      res.end(JSON.stringify({ error: "Invalid or missing parameters" }));
       return;
     }
 
     const targetPath = findMangaPath(MANGA_PATH, slug, chapter);
-    if (!targetPath || !fs.existsSync(targetPath)) {
+    if (!targetPath || !fs.existsSync(targetPath) || !isSafePath(MANGA_PATH, targetPath)) {
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Manga chapter not found" }));
       return;
@@ -621,7 +732,7 @@ function findMangaPath(baseDir, slug, chapter) {
       } else if (stat.isDirectory()) {
         const subFiles = fs.readdirSync(targetPath, { withFileTypes: true });
         const imageFiles = subFiles
-          .filter((f) => f.isFile() && IMAGE_EXTENSIONS_REGEX.test(f.name))
+          .filter((f) => isFileEntry(f, targetPath) && IMAGE_EXTENSIONS_REGEX.test(f.name))
           .map((f) => f.name)
           .sort(naturalSortPages);
 
@@ -634,7 +745,7 @@ function findMangaPath(baseDir, slug, chapter) {
       }
     } catch (err) {
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: err.message }));
+      res.end(JSON.stringify({ error: "Failed to read manga pages" }));
       return;
     }
   }
@@ -646,14 +757,14 @@ function findMangaPath(baseDir, slug, chapter) {
     const pageStr = parsedUrl.searchParams.get("page");
     const pageIndex = parseInt(pageStr || "0", 10);
 
-    if (!slug) {
+    if (!slug || isMaliciousPathSegment(slug) || isMaliciousPathSegment(chapter) || isNaN(pageIndex)) {
       res.writeHead(400, { "Content-Type": "text/plain" });
-      res.end("Missing slug");
+      res.end("Invalid or missing parameters");
       return;
     }
 
     const targetPath = findMangaPath(MANGA_PATH, slug, chapter);
-    if (!targetPath || !fs.existsSync(targetPath)) {
+    if (!targetPath || !fs.existsSync(targetPath) || !isSafePath(MANGA_PATH, targetPath)) {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("Chapter not found");
       return;

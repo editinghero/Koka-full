@@ -275,6 +275,34 @@ export function VideoPlayer({
     setCurrentTime(target);
   };
 
+  const lastMousePos = useRef<{ x: number; y: number }>({ x: -1, y: -1 });
+  const singleTapTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Toggle controls visibility helper
+  const toggleControlsVisibility = useCallback(() => {
+    setControlsVisible((prev) => {
+      const next = !prev;
+      if (next) {
+        setControlsVisible(true);
+        if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+        hideControlsTimer.current = setTimeout(() => {
+          if (videoRef.current && !videoRef.current.paused) {
+            setControlsVisible(false);
+            setShowSpeedMenu(false);
+            setShowSubMenu(false);
+            setShowEpisodeMenu(false);
+          }
+        }, 3500);
+      } else {
+        if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+        setShowSpeedMenu(false);
+        setShowSubMenu(false);
+        setShowEpisodeMenu(false);
+      }
+      return next;
+    });
+  }, []);
+
   // Fullscreen toggle
   const toggleFullscreen = async () => {
     if (!containerRef.current) return;
@@ -293,10 +321,23 @@ export function VideoPlayer({
     }
   };
 
-  // Touch / Mobile gesture handler
-  // Single tap  -> toggle controls visibility
-  // Double tap left/right -> seek -10/+10s
-  // Double tap center -> toggle fullscreen
+  // Mouse move handler with distance threshold to ignore jitter
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const dx = Math.abs(e.clientX - lastMousePos.current.x);
+    const dy = Math.abs(e.clientY - lastMousePos.current.y);
+    if (dx > 6 || dy > 6) {
+      lastMousePos.current = { x: e.clientX, y: e.clientY };
+      pingControls();
+    }
+  };
+
+  // Desktop click handler (with touch suppression to avoid double toggles)
+  const handleScreenClick = (e: React.MouseEvent) => {
+    if (Date.now() - lastTapRef.current.time < 500) return;
+    toggleControlsVisibility();
+  };
+
+  // Mobile touch gesture handler (single tap = toggle controls, double tap = seek/fullscreen)
   const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
     const now = Date.now();
     const touch = e.changedTouches[0];
@@ -304,11 +345,17 @@ export function VideoPlayer({
 
     const rect = containerRef.current.getBoundingClientRect();
     const touchX = touch.clientX - rect.left;
-    const isDoubleTap =
-      now - lastTapRef.current.time < 300 &&
-      Math.abs(touchX - lastTapRef.current.x) < 60;
+    const timeDelta = now - lastTapRef.current.time;
+    const distDelta = Math.abs(touchX - lastTapRef.current.x);
 
-    if (isDoubleTap) {
+    if (timeDelta < 300 && distDelta < 60) {
+      // DOUBLE TAP
+      if (singleTapTimer.current) {
+        clearTimeout(singleTapTimer.current);
+        singleTapTimer.current = null;
+      }
+      lastTapRef.current = { time: 0, x: 0 };
+
       const width = rect.width;
       if (touchX < width * 0.35) {
         seekRelative(-10);
@@ -322,12 +369,14 @@ export function VideoPlayer({
 
       if (seekFeedbackTimer.current) clearTimeout(seekFeedbackTimer.current);
       seekFeedbackTimer.current = setTimeout(() => setSeekFeedback(null), 800);
-      lastTapRef.current = { time: 0, x: 0 };
     } else {
-      // Single tap: just toggle controls visibility
+      // SINGLE TAP (debounced to avoid triggering on first tap of a double tap)
       lastTapRef.current = { time: now, x: touchX };
-      setControlsVisible((prev) => !prev);
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+      if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+      singleTapTimer.current = setTimeout(() => {
+        toggleControlsVisibility();
+        singleTapTimer.current = null;
+      }, 260);
     }
   };
 
@@ -411,19 +460,14 @@ export function VideoPlayer({
   return (
     <div
       ref={containerRef}
-      onMouseMove={pingControls}
-      onTouchEnd={handleTouchEnd}
+      onMouseMove={handleMouseMove}
       className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black select-none overflow-hidden"
     >
-      {/* Video Element — click only toggles controls, not play/pause */}
+      {/* Video Element */}
       <video
         ref={videoRef}
         src={videoSrc}
-        className="w-full h-full object-contain cursor-pointer"
-        onClick={() => {
-          setControlsVisible((prev) => !prev);
-          if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-        }}
+        className="w-full h-full object-contain pointer-events-none"
         onTimeUpdate={() => {
           if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
         }}
@@ -453,6 +497,13 @@ export function VideoPlayer({
           />
         )}
       </video>
+
+      {/* Full-screen Interaction Surface (handles single click/tap to toggle controls and double tap to seek) */}
+      <div
+        className="absolute inset-0 z-10 cursor-pointer"
+        onClick={handleScreenClick}
+        onTouchEnd={handleTouchEnd}
+      />
 
       {/* Double Tap Seek Feedback Ripple */}
       {seekFeedback && (
