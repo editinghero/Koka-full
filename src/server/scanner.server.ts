@@ -5,6 +5,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import type { Dirent } from "node:fs";
 import { basename, extname, join, parse, resolve } from "node:path";
 import { ensureDbInitialized } from "./db.server";
 import { loadAppConfig } from "./config.server";
@@ -154,6 +155,23 @@ function resolvePath(p: string): string {
   return resolve(p);
 }
 
+/**
+ * Returns true if the dirent is a real directory OR a symlink/junction that
+ * resolves to a directory. This lets the scanner follow Windows junctions and
+ * Unix symlinks transparently.
+ */
+function isDirEntry(entry: Dirent, parentPath: string): boolean {
+  if (entry.isDirectory()) return true;
+  if (entry.isSymbolicLink()) {
+    try {
+      return statSync(join(parentPath, entry.name)).isDirectory();
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 function cleanTitle(folderName: string): string {
   return folderName
     .replace(/\[.*?\]|\(.*?\)/g, "")
@@ -188,7 +206,7 @@ function scanAnimeTitleFolder(
       } else if (SUBTITLE_EXTENSIONS.has(ext)) {
         rootSubtitles.push(item.name);
       }
-    } else if (item.isDirectory()) {
+    } else if (isDirEntry(item, titlePath)) {
       const lower = item.name.toLowerCase();
       if (
         lower.startsWith("season") ||
@@ -496,7 +514,7 @@ export async function scanLibrary(): Promise<LibraryScanState> {
 
       for (const entry of rootEntries) {
         if (
-          !entry.isDirectory() ||
+          !isDirEntry(entry, animeRoot) ||
           entry.name.startsWith(".") ||
           IGNORE_DIRS.has(entry.name.toLowerCase())
         )
@@ -510,7 +528,7 @@ export async function scanLibrary(): Promise<LibraryScanState> {
             withFileTypes: true,
           }).filter(
             (d) =>
-              d.isDirectory() &&
+              isDirEntry(d, statusDir) &&
               !d.name.startsWith(".") &&
               !IGNORE_DIRS.has(d.name.toLowerCase()),
           );
@@ -549,7 +567,7 @@ export async function scanLibrary(): Promise<LibraryScanState> {
 
       for (const entry of rootEntries) {
         if (
-          !entry.isDirectory() ||
+          !isDirEntry(entry, mangaRoot) ||
           entry.name.startsWith(".") ||
           IGNORE_DIRS.has(entry.name.toLowerCase())
         )
@@ -563,7 +581,7 @@ export async function scanLibrary(): Promise<LibraryScanState> {
             withFileTypes: true,
           }).filter(
             (d) =>
-              d.isDirectory() &&
+              isDirEntry(d, statusDir) &&
               !d.name.startsWith(".") &&
               !IGNORE_DIRS.has(d.name.toLowerCase()),
           );
