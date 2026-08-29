@@ -21,9 +21,7 @@ export const getAuthConfig = createServerFn({ method: "GET" }).handler(
 );
 
 export const signUp = createServerFn({ method: "POST" })
-  .validator(
-    (data: { email: string; name: string; password: string }) => data,
-  )
+  .validator((data: { email: string; name: string; password: string }) => data)
   .handler(async ({ data }) => {
     const { signupsAllowed } = await import("@/server/runtime.server");
     if (!signupsAllowed())

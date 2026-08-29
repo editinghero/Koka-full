@@ -1,4 +1,10 @@
-import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import {
+  createReadStream,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+} from "node:fs";
 import { extname, join, parse, resolve } from "node:path";
 import AdmZip from "adm-zip";
 import { getScanState, naturalSort } from "./scanner.server";
@@ -77,7 +83,10 @@ export async function getMangaChapterPages(
   if (chapter.format === "folder") {
     const files = readdirSync(chapterPath, { withFileTypes: true });
     const imageFiles = files
-      .filter((f) => f.isFile() && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()))
+      .filter(
+        (f) =>
+          f.isFile() && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
+      )
       .map((f) => f.name)
       .sort(naturalSort);
 
@@ -110,7 +119,9 @@ export async function getMangaChapterPages(
   if (chapter.format === "cbr") {
     try {
       const { createExtractorFromFile } = await import("node-unrar-js");
-      const extractor = await createExtractorFromFile({ filepath: chapterPath });
+      const extractor = await createExtractorFromFile({
+        filepath: chapterPath,
+      });
       const list = extractor.getFileList();
       const files = [...list.fileHeaders]
         .filter(
@@ -156,7 +167,10 @@ export async function getMangaPageBuffer(
   if (chapter.format === "folder") {
     const files = readdirSync(chapterPath, { withFileTypes: true });
     const imageFiles = files
-      .filter((f) => f.isFile() && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()))
+      .filter(
+        (f) =>
+          f.isFile() && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
+      )
       .map((f) => f.name)
       .sort(naturalSort);
 
@@ -189,7 +203,9 @@ export async function getMangaPageBuffer(
   if (chapter.format === "cbr") {
     try {
       const { createExtractorFromFile } = await import("node-unrar-js");
-      const extractor = await createExtractorFromFile({ filepath: chapterPath });
+      const extractor = await createExtractorFromFile({
+        filepath: chapterPath,
+      });
       const list = extractor.getFileList();
       const files = [...list.fileHeaders]
         .filter(

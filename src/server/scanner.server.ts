@@ -1,4 +1,10 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, extname, join, parse, resolve } from "node:path";
 import { ensureDbInitialized } from "./db.server";
 import { loadAppConfig } from "./config.server";
@@ -58,12 +64,37 @@ export interface LibraryScanState {
   isScanning: boolean;
 }
 
-const VIDEO_EXTENSIONS = new Set([".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".ts", ".m4v"]);
+const VIDEO_EXTENSIONS = new Set([
+  ".mp4",
+  ".mkv",
+  ".webm",
+  ".avi",
+  ".mov",
+  ".flv",
+  ".ts",
+  ".m4v",
+]);
 const SUBTITLE_EXTENSIONS = new Set([".vtt", ".srt", ".ass", ".ssa"]);
-const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"]);
+const IMAGE_EXTENSIONS = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".avif",
+  ".gif",
+]);
 const ARCHIVE_EXTENSIONS = new Set([".cbz", ".zip", ".cbr", ".rar"]);
 
-const STATUS_FOLDERS = ["watching", "planned", "finished", "completed", "dropped", "on_hold", "reading", "paused"];
+const STATUS_FOLDERS = [
+  "watching",
+  "planned",
+  "finished",
+  "completed",
+  "dropped",
+  "on_hold",
+  "reading",
+  "paused",
+];
 
 // In-memory cached scan state
 let globalScanState: LibraryScanState = {
@@ -288,7 +319,13 @@ function scanMangaTitleFolder(
     if (item.isFile()) {
       const ext = extname(item.name).toLowerCase();
       if (ARCHIVE_EXTENSIONS.has(ext)) {
-        const format = (ext === ".cbr" || ext === ".rar" ? "cbr" : ext === ".cbz" ? "cbz" : "zip") as MangaChapter["format"];
+        const format = (
+          ext === ".cbr" || ext === ".rar"
+            ? "cbr"
+            : ext === ".cbz"
+              ? "cbz"
+              : "zip"
+        ) as MangaChapter["format"];
         chapters.push({
           file: item.name,
           label: parse(item.name).name,
@@ -302,7 +339,8 @@ function scanMangaTitleFolder(
       try {
         const subFiles = readdirSync(subPath, { withFileTypes: true });
         const imageCount = subFiles.filter(
-          (f) => f.isFile() && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
+          (f) =>
+            f.isFile() && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
         ).length;
 
         if (imageCount > 0) {
@@ -403,7 +441,9 @@ export async function scanLibrary(): Promise<LibraryScanState> {
 
   try {
     const db = await ensureDbInitialized();
-    const linksRes = await db.execute("SELECT media_type, media_id, folder_slug, folder_name FROM local_media_links");
+    const linksRes = await db.execute(
+      "SELECT media_type, media_id, folder_slug, folder_name FROM local_media_links",
+    );
     for (const r of linksRes.rows) {
       const mType = String(r["media_type"]);
       const mId = Number(r["media_id"]);
@@ -440,7 +480,9 @@ export async function scanLibrary(): Promise<LibraryScanState> {
         if (STATUS_FOLDERS.includes(lowerName)) {
           // Status subfolder like watching/finished
           const statusDir = join(animeRoot, entry.name);
-          const titleDirs = readdirSync(statusDir, { withFileTypes: true }).filter(
+          const titleDirs = readdirSync(statusDir, {
+            withFileTypes: true,
+          }).filter(
             (d) =>
               d.isDirectory() &&
               !d.name.startsWith(".") &&
@@ -448,7 +490,12 @@ export async function scanLibrary(): Promise<LibraryScanState> {
           );
           for (const td of titleDirs) {
             const titlePath = join(statusDir, td.name);
-            const anime = scanAnimeTitleFolder(titlePath, td.name, entry.name, animeLinks);
+            const anime = scanAnimeTitleFolder(
+              titlePath,
+              td.name,
+              entry.name,
+              animeLinks,
+            );
             if (anime.episodeCount > 0) {
               scannedAnime.push(anime);
             }
@@ -456,7 +503,12 @@ export async function scanLibrary(): Promise<LibraryScanState> {
         } else {
           // Direct series folder
           const titlePath = join(animeRoot, entry.name);
-          const anime = scanAnimeTitleFolder(titlePath, entry.name, undefined, animeLinks);
+          const anime = scanAnimeTitleFolder(
+            titlePath,
+            entry.name,
+            undefined,
+            animeLinks,
+          );
           if (anime.episodeCount > 0) {
             scannedAnime.push(anime);
           }
@@ -481,7 +533,9 @@ export async function scanLibrary(): Promise<LibraryScanState> {
         if (STATUS_FOLDERS.includes(lowerName)) {
           // Status subfolder like reading/completed
           const statusDir = join(mangaRoot, entry.name);
-          const titleDirs = readdirSync(statusDir, { withFileTypes: true }).filter(
+          const titleDirs = readdirSync(statusDir, {
+            withFileTypes: true,
+          }).filter(
             (d) =>
               d.isDirectory() &&
               !d.name.startsWith(".") &&
@@ -489,7 +543,12 @@ export async function scanLibrary(): Promise<LibraryScanState> {
           );
           for (const td of titleDirs) {
             const titlePath = join(statusDir, td.name);
-            const manga = scanMangaTitleFolder(titlePath, td.name, entry.name, mangaLinks);
+            const manga = scanMangaTitleFolder(
+              titlePath,
+              td.name,
+              entry.name,
+              mangaLinks,
+            );
             if (manga.chapterCount > 0) {
               scannedManga.push(manga);
             }
@@ -497,7 +556,12 @@ export async function scanLibrary(): Promise<LibraryScanState> {
         } else {
           // Direct manga folder
           const titlePath = join(mangaRoot, entry.name);
-          const manga = scanMangaTitleFolder(titlePath, entry.name, undefined, mangaLinks);
+          const manga = scanMangaTitleFolder(
+            titlePath,
+            entry.name,
+            undefined,
+            mangaLinks,
+          );
           if (manga.chapterCount > 0) {
             scannedManga.push(manga);
           }

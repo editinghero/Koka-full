@@ -143,7 +143,11 @@ function AnimeDetail() {
       scanState.anime.find((a) => a.mediaId === media.id) ||
       scanState.anime.find(
         (a) =>
-          a.slug === media.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),
+          a.slug ===
+          media.title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, ""),
       ) ||
       null
     );
@@ -155,7 +159,11 @@ function AnimeDetail() {
       scanState.manga.find((m) => m.mediaId === media.id) ||
       scanState.manga.find(
         (m) =>
-          m.slug === media.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),
+          m.slug ===
+          media.title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, ""),
       ) ||
       null
     );
@@ -429,7 +437,9 @@ function AnimeDetail() {
             )}
             <div>
               <h2 className="font-display text-sm font-semibold">
-                {mode === "MANGA" ? "Local Manga Chapters" : "Local Anime Episodes"}
+                {mode === "MANGA"
+                  ? "Local Manga Chapters"
+                  : "Local Anime Episodes"}
               </h2>
               <p className="text-xs text-muted-foreground">
                 {localAnime
@@ -449,7 +459,9 @@ function AnimeDetail() {
               className="h-8 text-xs gap-1.5"
             >
               <FolderPlus className="h-3.5 w-3.5" />
-              {localAnime || localManga ? "Change Linked Folder" : "Link Local Folder"}
+              {localAnime || localManga
+                ? "Change Linked Folder"
+                : "Link Local Folder"}
             </Button>
           </div>
         </div>
@@ -462,13 +474,16 @@ function AnimeDetail() {
               const latestWatch = watchRecords?.[0];
               let nextSeason = localAnime.seasons[0]?.name ?? "Season 1";
               let nextFile = localAnime.seasons[0]?.episodes[0]?.file ?? "";
-              let nextLabel = localAnime.seasons[0]?.episodes[0]?.label ?? "Episode 1";
+              let nextLabel =
+                localAnime.seasons[0]?.episodes[0]?.label ?? "Episode 1";
               let nextPos = 0;
 
               if (latestWatch) {
                 nextSeason = latestWatch.season;
                 nextFile = latestWatch.episodeFile;
-                nextPos = latestWatch.completed ? 0 : latestWatch.positionSeconds;
+                nextPos = latestWatch.completed
+                  ? 0
+                  : latestWatch.positionSeconds;
                 const foundEp = localAnime.seasons
                   .find((s) => s.name === latestWatch.season)
                   ?.episodes.find((e) => e.file === latestWatch.episodeFile);
@@ -481,7 +496,9 @@ function AnimeDetail() {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-primary/10 border border-primary/20">
                   <div className="min-w-0">
                     <span className="text-[11px] font-semibold text-primary uppercase tracking-wider">
-                      {latestWatch && !latestWatch.completed ? "Resume Watching" : "Play Next"}
+                      {latestWatch && !latestWatch.completed
+                        ? "Resume Watching"
+                        : "Play Next"}
                     </span>
                     <h3 className="font-display font-semibold text-sm truncate text-foreground">
                       {nextSeason} &bull; {nextLabel}
@@ -499,7 +516,9 @@ function AnimeDetail() {
                     className="gap-2 shrink-0 h-9"
                   >
                     <Play className="h-4 w-4 fill-current" />
-                    {latestWatch && !latestWatch.completed ? "Resume" : "Play Episode"}
+                    {latestWatch && !latestWatch.completed
+                      ? "Resume"
+                      : "Play Episode"}
                   </Button>
                 </div>
               );
@@ -520,7 +539,8 @@ function AnimeDetail() {
                       const isComplete = watch?.completed;
                       const progressPct =
                         watch && watch.durationSeconds > 0
-                          ? (watch.positionSeconds / watch.durationSeconds) * 100
+                          ? (watch.positionSeconds / watch.durationSeconds) *
+                            100
                           : 0;
 
                       return (
@@ -530,7 +550,9 @@ function AnimeDetail() {
                             setActiveVideo({
                               season: s.name,
                               file: ep.file,
-                              initialPosition: isComplete ? 0 : (watch?.positionSeconds ?? 0),
+                              initialPosition: isComplete
+                                ? 0
+                                : (watch?.positionSeconds ?? 0),
                             })
                           }
                           className="group relative flex flex-col p-3 rounded-lg border border-border bg-card/60 hover:bg-accent/70 hover:border-primary/40 transition-all text-left overflow-hidden"
@@ -598,10 +620,15 @@ function AnimeDetail() {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-xl bg-primary/10 border border-primary/20">
                   <div className="min-w-0 flex-1">
                     <span className="text-[11px] font-semibold text-primary uppercase tracking-wider block">
-                      {latestRead && !latestRead.completed ? "Resume Reading" : "Read Next"}
+                      {latestRead && !latestRead.completed
+                        ? "Resume Reading"
+                        : "Read Next"}
                     </span>
                     <h3 className="font-display font-semibold text-sm whitespace-normal break-words leading-relaxed text-foreground mt-0.5">
-                      {nextLabel} {latestRead && !latestRead.completed ? `(Page ${nextPage})` : ""}
+                      {nextLabel}{" "}
+                      {latestRead && !latestRead.completed
+                        ? `(Page ${nextPage})`
+                        : ""}
                     </h3>
                   </div>
 
@@ -615,7 +642,9 @@ function AnimeDetail() {
                     className="gap-2 shrink-0 h-9"
                   >
                     <BookOpen className="h-4 w-4" />
-                    {latestRead && !latestRead.completed ? "Resume Reading" : "Read Chapter"}
+                    {latestRead && !latestRead.completed
+                      ? "Resume Reading"
+                      : "Read Chapter"}
                   </Button>
                 </div>
               );
@@ -624,7 +653,9 @@ function AnimeDetail() {
             {/* Chapters Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
               {localManga.chapters.map((ch) => {
-                const read = readRecords?.find((r) => r.chapterFile === ch.file);
+                const read = readRecords?.find(
+                  (r) => r.chapterFile === ch.file,
+                );
                 const isComplete = read?.completed;
 
                 return (
@@ -670,7 +701,9 @@ function AnimeDetail() {
         {!localAnime && !localManga && (
           <div className="mt-4 p-6 rounded-xl border border-dashed border-border text-center flex flex-col items-center justify-center gap-3">
             <p className="text-xs text-muted-foreground max-w-sm">
-              No local {mode === "MANGA" ? "manga chapter files" : "anime video files"} were automatically matched for &ldquo;{media.title}&rdquo;.
+              No local{" "}
+              {mode === "MANGA" ? "manga chapter files" : "anime video files"}{" "}
+              were automatically matched for &ldquo;{media.title}&rdquo;.
             </p>
             <Button
               variant="outline"
@@ -695,7 +728,11 @@ function AnimeDetail() {
           seasons={localAnime.seasons}
           initialPosition={activeVideo.initialPosition}
           onEpisodeChange={(newSeason, newFile) =>
-            setActiveVideo({ season: newSeason, file: newFile, initialPosition: 0 })
+            setActiveVideo({
+              season: newSeason,
+              file: newFile,
+              initialPosition: 0,
+            })
           }
           onClose={() => {
             setActiveVideo(null);
@@ -730,7 +767,9 @@ function AnimeDetail() {
           media={media}
           mediaType={mode}
           allLocalMedia={
-            mode === "MANGA" ? (scanState?.manga ?? []) : (scanState?.anime ?? [])
+            mode === "MANGA"
+              ? (scanState?.manga ?? [])
+              : (scanState?.anime ?? [])
           }
           currentLinkedSlug={
             mode === "MANGA" ? localManga?.slug : localAnime?.slug

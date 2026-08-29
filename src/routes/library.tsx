@@ -271,37 +271,60 @@ function LibraryPage() {
   });
 
   const [downloadedOnly, setDownloadedOnly] = useState(false);
-  const [selectedUnlinkedFolder, setSelectedUnlinkedFolder] = useState<ScannedAnime | ScannedManga | null>(null);
+  const [selectedUnlinkedFolder, setSelectedUnlinkedFolder] = useState<
+    ScannedAnime | ScannedManga | null
+  >(null);
 
   // Direct player/reader trigger for unlinked items
-  const [directPlayAnime, setDirectPlayAnime] = useState<ScannedAnime | null>(null);
-  const [directReadManga, setDirectReadManga] = useState<{ manga: ScannedManga; chapterFile: string } | null>(null);
+  const [directPlayAnime, setDirectPlayAnime] = useState<ScannedAnime | null>(
+    null,
+  );
+  const [directReadManga, setDirectReadManga] = useState<{
+    manga: ScannedManga;
+    chapterFile: string;
+  } | null>(null);
+
+  // Cache downloaded scan sets for O(1) checks in filtering
+  const scanMediaIds = useMemo(() => {
+    if (!scanState) return new Set<number>();
+    const items = mode === "MANGA" ? scanState.manga : scanState.anime;
+    return new Set(
+      items
+        .map((m) => m.mediaId)
+        .filter((id): id is number => id !== undefined),
+    );
+  }, [scanState, mode]);
+
+  const scanSlugs = useMemo(() => {
+    if (!scanState) return new Set<string>();
+    const items = mode === "MANGA" ? scanState.manga : scanState.anime;
+    return new Set(items.map((m) => m.slug).filter(Boolean));
+  }, [scanState, mode]);
 
   // Local media check helper
-  const isMediaDownloaded = (mediaId: number, title: string) => {
-    if (!scanState) return false;
-    const slug = toSlug(title);
-    if (mode === "MANGA") {
-      return (
-        scanState.manga.some((m) => m.mediaId === mediaId) ||
-        scanState.manga.some((m) => m.slug === slug)
-      );
-    }
-    return (
-      scanState.anime.some((a) => a.mediaId === mediaId) ||
-      scanState.anime.some((a) => a.slug === slug)
-    );
-  };
+  const isMediaDownloaded = useCallback(
+    (mediaId: number, title: string) => {
+      if (!scanState) return false;
+      const slug = toSlug(title);
+      return scanMediaIds.has(mediaId) || scanSlugs.has(slug);
+    },
+    [scanState, scanMediaIds, scanSlugs],
+  );
 
   // Compute unlinked folders on disk
   const unlinkedFolders = useMemo(() => {
     if (!scanState) return [];
     const items = mode === "MANGA" ? scanState.manga : scanState.anime;
+
+    // Create sets for O(1) lookups against library items
+    const libraryIds = new Set(library.map((e) => e.media.id));
+    const librarySlugs = new Set(library.map((e) => toSlug(e.media.title)));
+
     return items.filter((item) => {
-      if (item.mediaId && library.some((e) => e.media.id === item.mediaId)) {
+      if (item.mediaId && libraryIds.has(item.mediaId)) {
         return false;
       }
-      if (library.some((e) => toSlug(e.media.title) === item.slug)) {
+      if (librarySlugs.has(item.slug)) {
         return false;
       }
       return true;
@@ -374,7 +397,9 @@ function LibraryPage() {
     return library
       .filter((e) => status === "ALL" || e.status === status)
       .filter((e) => genre === "ALL" || e.media.genres?.includes(genre))
-      .filter((e) => !downloadedOnly || isMediaDownloaded(e.media.id, e.media.title))
+      .filter(
+        (e) => !downloadedOnly || isMediaDownloaded(e.media.id, e.media.title),
+      )
       .filter(
         (e) =>
           customList === "ALL" ||
@@ -403,7 +428,11 @@ function LibraryPage() {
         );
 
         return (
-          !!titleMatch || !!genreMatch || !!studioMatch || !!tagMatch || !!customListMatch
+          !!titleMatch ||
+          !!genreMatch ||
+          !!studioMatch ||
+          !!tagMatch ||
+          !!customListMatch
         );
       })
       .sort((a, b) => {
@@ -412,13 +441,25 @@ function LibraryPage() {
         if (sort === "progress") return b.progress - a.progress;
         return b.updatedAt - a.updatedAt;
       });
-  }, [library, status, genre, customList, query, sort, downloadedOnly, scanState, mode]);
+  }, [
+    library,
+    status,
+    genre,
+    customList,
+    query,
+    sort,
+    downloadedOnly,
+    scanState,
+    mode,
+  ]);
 
   const filteredUnlinked = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return unlinkedFolders;
-    return unlinkedFolders.filter((f) =>
-      f.folderName.toLowerCase().includes(q) || f.slug.toLowerCase().includes(q),
+    return unlinkedFolders.filter(
+      (f) =>
+        f.folderName.toLowerCase().includes(q) ||
+        f.slug.toLowerCase().includes(q),
     );
   }, [unlinkedFolders, query]);
 
@@ -579,8 +620,8 @@ function LibraryPage() {
       {/* Main Grid or List View */}
       {filtered.length || (downloadedOnly && filteredUnlinked.length) ? (
         <div className="space-y-6">
-          {filtered.length > 0 && (
-            viewMode === "grid" ? (
+          {filtered.length > 0 &&
+            (viewMode === "grid" ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                 {filtered.map((e) => (
                   <AnimeCard
@@ -608,8 +649,7 @@ function LibraryPage() {
                   />
                 ))}
               </div>
-            )
-          )}
+            ))}
 
           {/* Unlinked Local Media Section */}
           {downloadedOnly && filteredUnlinked.length > 0 && (

@@ -153,9 +153,7 @@ export function MangaReader({
   const [brightness, setBrightnessState] = useState<number>(
     initialPrefs.brightness,
   );
-  const [contrast, setContrastState] = useState<number>(
-    initialPrefs.contrast,
-  );
+  const [contrast, setContrastState] = useState<number>(initialPrefs.contrast);
   const [filterMode, setFilterModeState] = useState<ColorFilterMode>(
     initialPrefs.filterMode,
   );
@@ -255,8 +253,7 @@ export function MangaReader({
       if (updates.contrast !== undefined) setContrastState(updates.contrast);
       if (updates.filterMode !== undefined)
         setFilterModeState(updates.filterMode);
-      if (updates.grayscale !== undefined)
-        setGrayscaleState(updates.grayscale);
+      if (updates.grayscale !== undefined) setGrayscaleState(updates.grayscale);
       if (updates.pageTexture !== undefined)
         setPageTextureState(updates.pageTexture);
 
@@ -626,7 +623,9 @@ export function MangaReader({
   const handleTouchEnd = () => {
     touchDistanceRef.current = null;
     if (wasDraggingRef.current) {
-      setTimeout(() => { wasDraggingRef.current = false; }, 50);
+      setTimeout(() => {
+        wasDraggingRef.current = false;
+      }, 50);
     }
     isDraggingRef.current = false;
   };
@@ -654,7 +653,9 @@ export function MangaReader({
 
   const handleMouseUp = () => {
     if (wasDraggingRef.current) {
-      setTimeout(() => { wasDraggingRef.current = false; }, 50);
+      setTimeout(() => {
+        wasDraggingRef.current = false;
+      }, 50);
     }
     isDraggingRef.current = false;
   };
@@ -799,9 +800,12 @@ export function MangaReader({
   // 80% baseline scale for comfortable desktop reading with drag pan translation
   const getTransformStyle = (): React.CSSProperties => {
     const scale = (zoomLevel / 100) * 0.8;
-    const isPanned = (panOffset.x !== 0 || panOffset.y !== 0) && zoomLevel > 100;
+    const isPanned =
+      (panOffset.x !== 0 || panOffset.y !== 0) && zoomLevel > 100;
     return {
-      transform: `${scale !== 1 ? `scale(${scale})` : ""} ${isPanned ? `translate(${panOffset.x / scale}px, ${panOffset.y / scale}px)` : ""}`.trim() || undefined,
+      transform:
+        `${scale !== 1 ? `scale(${scale})` : ""} ${isPanned ? `translate(${panOffset.x / scale}px, ${panOffset.y / scale}px)` : ""}`.trim() ||
+        undefined,
       transformOrigin: "center center",
       transition: isDraggingRef.current ? "none" : "transform 0.15s ease-out",
       cursor: zoomLevel > 100 ? "grab" : "default",
@@ -820,7 +824,9 @@ export function MangaReader({
       style={{ touchAction: mode === "webtoon" ? "pan-y pinch-zoom" : "none" }}
       className={cn(
         "fixed inset-0 z-[100] flex flex-col select-none overflow-hidden transition-colors duration-300",
-        filterMode === "night" ? "bg-black text-foreground" : "bg-background text-foreground",
+        filterMode === "night"
+          ? "bg-black text-foreground"
+          : "bg-background text-foreground",
       )}
     >
       {/* High-definition Tactile Paper Grain Texture Overlay via Inline SVG */}
@@ -842,7 +848,12 @@ export function MangaReader({
                 values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 0.91 0"
               />
             </filter>
-            <rect width="100%" height="100%" filter="url(#mangaPaperGrain)" fill="#9e8a75" />
+            <rect
+              width="100%"
+              height="100%"
+              filter="url(#mangaPaperGrain)"
+              fill="#9e8a75"
+            />
           </svg>
         </div>
       )}
@@ -992,7 +1003,9 @@ export function MangaReader({
                   size="icon"
                   className={cn(
                     "h-8 w-8 rounded-full transition-colors",
-                    isAutoScrolling ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground",
+                    isAutoScrolling
+                      ? "text-primary bg-primary/10"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                   onClick={() => setIsAutoScrolling((prev) => !prev)}
                   title={
@@ -1164,7 +1177,9 @@ export function MangaReader({
                         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                           Zoom
                         </span>
-                        <span className="font-mono font-medium">{zoomLevel}%</span>
+                        <span className="font-mono font-medium">
+                          {zoomLevel}%
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <Button
@@ -1232,7 +1247,8 @@ export function MangaReader({
                           step={5}
                           value={[brightness]}
                           onValueChange={(val) => {
-                            if (val[0]) updatePreference({ brightness: val[0] });
+                            if (val[0])
+                              updatePreference({ brightness: val[0] });
                           }}
                         />
                       </div>
@@ -1274,7 +1290,9 @@ export function MangaReader({
                         ).map(([cKey, cLabel]) => (
                           <button
                             key={cKey}
-                            onClick={() => updatePreference({ filterMode: cKey })}
+                            onClick={() =>
+                              updatePreference({ filterMode: cKey })
+                            }
                             className={cn(
                               "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
                               filterMode === cKey
@@ -1305,7 +1323,9 @@ export function MangaReader({
                         )}
                       >
                         <span>Grayscale</span>
-                        {grayscale && <Check className="w-3 h-3 text-primary" />}
+                        {grayscale && (
+                          <Check className="w-3 h-3 text-primary" />
+                        )}
                       </button>
 
                       <button
@@ -1442,9 +1462,7 @@ export function MangaReader({
                   <span className="whitespace-normal break-words leading-relaxed flex-1 text-left">
                     {ch.label}
                   </span>
-                  {isSelected && (
-                    <Check className="w-3.5 h-3.5 shrink-0" />
-                  )}
+                  {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
                 </button>
               );
             })}
@@ -1456,7 +1474,10 @@ export function MangaReader({
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className={cn("flex-1 w-full h-full overflow-y-auto flex justify-center items-start relative bg-muted/5", zoomLevel > 100 ? "overflow-x-auto" : "overflow-x-hidden")}
+        className={cn(
+          "flex-1 w-full h-full overflow-y-auto flex justify-center items-start relative bg-muted/5",
+          zoomLevel > 100 ? "overflow-x-auto" : "overflow-x-hidden",
+        )}
       >
         {isLoading ? (
           <div className="flex items-center justify-center w-full h-full min-h-screen text-muted-foreground text-sm font-medium">
@@ -1467,10 +1488,25 @@ export function MangaReader({
           <div
             onClick={handleCenterClick}
             className="flex flex-col items-center gap-0 min-h-screen py-0 sm:py-0 cursor-pointer transition-all duration-150 ease-out mx-auto"
-            style={(fit === "height" || fit === "original") ? { width: "100%", maxWidth: fit === "original" ? "100vw" : "none" } : {
-              width: fit === "width" ? `${zoomLevel}%` : `${Math.round((700 * zoomLevel) / 100)}px`,
-              maxWidth: zoomLevel > 100 ? "none" : (fit === "width" ? "100%" : `${zoomLevel}vw`),
-            }}
+            style={
+              fit === "height" || fit === "original"
+                ? {
+                    width: "100%",
+                    maxWidth: fit === "original" ? "100vw" : "none",
+                  }
+                : {
+                    width:
+                      fit === "width"
+                        ? `${zoomLevel}%`
+                        : `${Math.round((700 * zoomLevel) / 100)}px`,
+                    maxWidth:
+                      zoomLevel > 100
+                        ? "none"
+                        : fit === "width"
+                          ? "100%"
+                          : `${zoomLevel}vw`,
+                  }
+            }
           >
             {pagesList.map((p) => (
               <div
@@ -1536,7 +1572,10 @@ export function MangaReader({
                   src={`/api/stream/manga-page?slug=${encodeURIComponent(slug)}&chapter=${encodeURIComponent(chapterFile)}&page=${currentPage - 1}`}
                   alt={`Page ${currentPage}`}
                   style={getImageFilterStyle()}
-                  className={cn(getSingleImageClass(), "rounded-md shadow-2xl transition-all duration-200")}
+                  className={cn(
+                    getSingleImageClass(),
+                    "rounded-md shadow-2xl transition-all duration-200",
+                  )}
                 />
               ) : (
                 // Double page spread
@@ -1560,7 +1599,9 @@ export function MangaReader({
                         style={getImageFilterStyle()}
                         className={cn(
                           getDoubleImageClass(currentPage >= totalPages),
-                          currentPage < totalPages ? "rounded-r-md" : "rounded-md",
+                          currentPage < totalPages
+                            ? "rounded-r-md"
+                            : "rounded-md",
                           "shadow-2xl transition-all duration-200",
                         )}
                       />
@@ -1573,7 +1614,9 @@ export function MangaReader({
                         style={getImageFilterStyle()}
                         className={cn(
                           getDoubleImageClass(currentPage >= totalPages),
-                          currentPage < totalPages ? "rounded-l-md" : "rounded-md",
+                          currentPage < totalPages
+                            ? "rounded-l-md"
+                            : "rounded-md",
                           "shadow-2xl transition-all duration-200",
                         )}
                       />

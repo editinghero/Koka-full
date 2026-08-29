@@ -114,7 +114,8 @@ export function UnlinkedFolderModal({
                 Unlinked Local Media: {folder.folderName}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Found on disk ({countLabel}). Link it to an AniList title to track progress, score, and notes.
+                Found on disk ({countLabel}). Link it to an AniList title to
+                track progress, score, and notes.
               </DialogDescription>
             </div>
           </div>
@@ -124,8 +125,12 @@ export function UnlinkedFolderModal({
         {onDirectPlay && (
           <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/30">
             <div className="text-xs">
-              <span className="font-semibold block text-foreground">Quick Launch</span>
-              <span className="text-muted-foreground">Open player/reader directly without linking</span>
+              <span className="font-semibold block text-foreground">
+                Quick Launch
+              </span>
+              <span className="text-muted-foreground">
+                Open player/reader directly without linking
+              </span>
             </div>
             <Button
               size="sm"
@@ -161,7 +166,12 @@ export function UnlinkedFolderModal({
               className="pl-8 text-xs h-9"
             />
           </div>
-          <Button type="submit" size="sm" disabled={isSearching} className="h-9 text-xs font-semibold">
+          <Button
+            type="submit"
+            size="sm"
+            disabled={isSearching}
+            className="h-9 text-xs font-semibold"
+          >
             {isSearching ? "Searching..." : "Search"}
           </Button>
         </form>
@@ -170,7 +180,9 @@ export function UnlinkedFolderModal({
         <div className="flex-1 overflow-y-auto min-h-[220px] max-h-[300px] space-y-2 pr-1">
           {results.length === 0 ? (
             <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
-              {isSearching ? "Searching AniList..." : "No titles found. Try searching a different keyword."}
+              {isSearching
+                ? "Searching AniList..."
+                : "No titles found. Try searching a different keyword."}
             </div>
           ) : (
             results.map((item) => (
@@ -195,7 +207,9 @@ export function UnlinkedFolderModal({
                       {item.title}
                     </h4>
                     <span className="text-[11px] text-muted-foreground block truncate">
-                      {item.format} · {item.seasonYear ?? item.season ?? "Series"} · {item.genres?.slice(0, 2).join(", ")}
+                      {item.format} ·{" "}
+                      {item.seasonYear ?? item.season ?? "Series"} ·{" "}
+                      {item.genres?.slice(0, 2).join(", ")}
                     </span>
                   </div>
                 </div>

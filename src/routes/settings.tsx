@@ -713,10 +713,13 @@ function LocalMediaLibrarySection() {
 
   return (
     <section className="panel p-5">
-      <h2 className="font-display text-sm font-semibold">Local Media Library</h2>
+      <h2 className="font-display text-sm font-semibold">
+        Local Media Library
+      </h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Configure the local hard drive paths for your Anime and Manga collection.
-        Episodes, seasons, manga image folders, and comic archives (.cbz, .zip, .cbr) are indexed automatically.
+        Configure the local hard drive paths for your Anime and Manga
+        collection. Episodes, seasons, manga image folders, and comic archives
+        (.cbz, .zip, .cbr) are indexed automatically.
       </p>
 
       <div className="mt-4 space-y-4">
@@ -747,10 +750,12 @@ function LocalMediaLibrarySection() {
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
           <div className="flex flex-wrap gap-2 text-xs">
             <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/40 px-2.5 py-1 font-medium">
-              Anime: <strong>{scanState?.anime.length ?? 0} titles</strong> ({totalAnimeEps} eps)
+              Anime: <strong>{scanState?.anime.length ?? 0} titles</strong> (
+              {totalAnimeEps} eps)
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/40 px-2.5 py-1 font-medium">
-              Manga: <strong>{scanState?.manga.length ?? 0} titles</strong> ({totalMangaChs} chs)
+              Manga: <strong>{scanState?.manga.length ?? 0} titles</strong> (
+              {totalMangaChs} chs)
             </span>
           </div>
 
@@ -770,7 +775,9 @@ function LocalMediaLibrarySection() {
               disabled={isScanning || isSaving}
               className="h-8 text-xs gap-1.5"
             >
-              <RefreshCw className={cn("h-3.5 w-3.5", isScanning && "animate-spin")} />
+              <RefreshCw
+                className={cn("h-3.5 w-3.5", isScanning && "animate-spin")}
+              />
               {isScanning ? "Scanning..." : "Rescan Library"}
             </Button>
           </div>

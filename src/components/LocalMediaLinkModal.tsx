@@ -1,5 +1,12 @@
 import React, { useMemo, useState } from "react";
-import { FolderCheck, FolderPlus, Link as LinkIcon, Search, Unlink, X } from "lucide-react";
+import {
+  FolderCheck,
+  FolderPlus,
+  Link as LinkIcon,
+  Search,
+  Unlink,
+  X,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -61,7 +68,9 @@ export function LocalMediaLinkModal({
           metaJson: media,
         },
       });
-      toast.success(`Linked "${media.title}" to local folder "${folder.folderName}"`);
+      toast.success(
+        `Linked "${media.title}" to local folder "${folder.folderName}"`,
+      );
       onLinkedChange();
       onOpenChange(false);
     } catch (err) {
@@ -99,7 +108,8 @@ export function LocalMediaLinkModal({
             <span>Link Local Folder</span>
           </DialogTitle>
           <DialogDescription>
-            Associate &ldquo;{media.title}&rdquo; with a folder detected on your hard drive.
+            Associate &ldquo;{media.title}&rdquo; with a folder detected on your
+            hard drive.
           </DialogDescription>
         </DialogHeader>
 
@@ -108,7 +118,8 @@ export function LocalMediaLinkModal({
             <div className="flex items-center gap-2">
               <FolderCheck className="w-4 h-4 text-primary shrink-0" />
               <span className="font-medium text-foreground">
-                Currently linked: <strong className="font-semibold">{currentLinkedSlug}</strong>
+                Currently linked:{" "}
+                <strong className="font-semibold">{currentLinkedSlug}</strong>
               </span>
             </div>
             <Button
@@ -137,7 +148,8 @@ export function LocalMediaLinkModal({
         <div className="flex-1 overflow-y-auto max-h-64 space-y-1.5 pr-1">
           {filteredFolders.length === 0 ? (
             <p className="text-center py-6 text-xs text-muted-foreground">
-              No matching local folders found. Check your library paths in Settings.
+              No matching local folders found. Check your library paths in
+              Settings.
             </p>
           ) : (
             filteredFolders.map((folder) => {

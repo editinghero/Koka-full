@@ -107,7 +107,10 @@ export function VideoPlayer({
   const handleLoadedMetadata = () => {
     if (!videoRef.current) return;
     setDuration(videoRef.current.duration);
-    if (initialPosition > 0 && initialPosition < videoRef.current.duration - 10) {
+    if (
+      initialPosition > 0 &&
+      initialPosition < videoRef.current.duration - 10
+    ) {
       videoRef.current.currentTime = initialPosition;
       setCurrentTime(initialPosition);
     }
@@ -190,7 +193,10 @@ export function VideoPlayer({
     if (!videoRef.current) return;
     const target = Math.max(
       0,
-      Math.min(videoRef.current.duration, videoRef.current.currentTime + seconds),
+      Math.min(
+        videoRef.current.duration,
+        videoRef.current.currentTime + seconds,
+      ),
     );
     videoRef.current.currentTime = target;
     setCurrentTime(target);
@@ -267,7 +273,12 @@ export function VideoPlayer({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (["input", "textarea"].includes((e.target as HTMLElement)?.tagName?.toLowerCase())) return;
+      if (
+        ["input", "textarea"].includes(
+          (e.target as HTMLElement)?.tagName?.toLowerCase(),
+        )
+      )
+        return;
 
       switch (e.key) {
         case " ":
@@ -472,7 +483,9 @@ export function VideoPlayer({
                         )}
                       >
                         <span className="truncate">{ep.label}</span>
-                        {isSelected && <Check className="w-3.5 h-3.5 ml-2 shrink-0" />}
+                        {isSelected && (
+                          <Check className="w-3.5 h-3.5 ml-2 shrink-0" />
+                        )}
                       </button>
                     );
                   })}
@@ -547,7 +560,9 @@ export function VideoPlayer({
               )}
             >
               <span className="truncate">{track}</span>
-              {activeSubtitle === track && <Check className="w-3 h-3 ml-2 shrink-0" />}
+              {activeSubtitle === track && (
+                <Check className="w-3 h-3 ml-2 shrink-0" />
+              )}
             </button>
           ))}
         </div>

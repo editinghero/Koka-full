@@ -90,9 +90,7 @@ export const removeEntry = createServerFn({ method: "POST" })
   });
 
 export const replaceLibrary = createServerFn({ method: "POST" })
-  .validator(
-    (data: { entries: LibraryEntry[]; types: MediaType[] }) => data,
-  )
+  .validator((data: { entries: LibraryEntry[]; types: MediaType[] }) => data)
   .handler(async ({ data }) => {
     const { requireUser } = await import("@/server/session.server");
     const { getRepo } = await import("@/server/repo.server");
@@ -132,9 +130,7 @@ export const replaceNotes = createServerFn({ method: "POST" })
   });
 
 export const logImport = createServerFn({ method: "POST" })
-  .validator(
-    (data: { source: string; mode: string; count: number }) => data,
-  )
+  .validator((data: { source: string; mode: string; count: number }) => data)
   .handler(async ({ data }) => {
     const { requireUser } = await import("@/server/session.server");
     const { getRepo } = await import("@/server/repo.server");

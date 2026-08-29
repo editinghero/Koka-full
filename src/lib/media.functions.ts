@@ -23,9 +23,8 @@ export interface ReadProgressRecord {
 /** Get library scan status and summary */
 export const getLibraryScanStatus = createServerFn({ method: "GET" }).handler(
   async () => {
-    const { getScanState, scanLibrary } = await import(
-      "@/server/scanner.server"
-    );
+    const { getScanState, scanLibrary } =
+      await import("@/server/scanner.server");
     let state = getScanState();
     if (state.lastScannedAt === 0 && !state.isScanning) {
       state = await scanLibrary();
@@ -217,7 +216,11 @@ export const linkLocalFolder = createServerFn({ method: "POST" })
         const { writeFileSync } = await import("node:fs");
         const { join } = await import("node:path");
         const metaPath = join(data.folderPath, "meta.json");
-        writeFileSync(metaPath, JSON.stringify(data.metaJson, null, 2), "utf-8");
+        writeFileSync(
+          metaPath,
+          JSON.stringify(data.metaJson, null, 2),
+          "utf-8",
+        );
       } catch (err) {
         console.warn("Could not write meta.json to folder:", err);
       }
@@ -258,8 +261,11 @@ export const getMediaConfig = createServerFn({ method: "GET" }).handler(
 /** Update media configuration */
 export const updateMediaConfig = createServerFn({ method: "POST" })
   .validator(
-    (data: { animePath?: string; mangaPath?: string; anilistUsername?: string }) =>
-      data,
+    (data: {
+      animePath?: string;
+      mangaPath?: string;
+      anilistUsername?: string;
+    }) => data,
   )
   .handler(async ({ data }) => {
     const { saveAppConfig } = await import("@/server/config.server");

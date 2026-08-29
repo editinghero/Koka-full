@@ -132,7 +132,13 @@ function sqliteRepo(): Repo {
       const db = await ensureDbInitialized();
       await db.execute({
         sql: "INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
-        args: [user.id, user.email, user.name, user.password_hash, user.created_at],
+        args: [
+          user.id,
+          user.email,
+          user.name,
+          user.password_hash,
+          user.created_at,
+        ],
       });
     },
     async updateUserName(id: string, name: string): Promise<void> {
@@ -162,7 +168,8 @@ function sqliteRepo(): Repo {
         gemini_key: row["gemini_key"] ? String(row["gemini_key"]) : "",
         model: row["model"] ? String(row["model"]) : DEFAULT_SETTINGS_ROW.model,
         anilist_user: row["anilist_user"] ? String(row["anilist_user"]) : "",
-        spoiler_free: row["spoiler_free"] !== null ? Number(row["spoiler_free"]) : 1,
+        spoiler_free:
+          row["spoiler_free"] !== null ? Number(row["spoiler_free"]) : 1,
         theme: row["theme"] ? String(row["theme"]) : "dark",
         light_theme: row["light_theme"] ? String(row["light_theme"]) : "paper",
         dark_theme: row["dark_theme"] ? String(row["dark_theme"]) : "koka",
@@ -215,11 +222,17 @@ function sqliteRepo(): Repo {
         media: JSON.parse(String(r["media"])),
         status: r["status"] as LibraryEntry["status"],
         progress: Number(r["progress"] ?? 0),
-        score: r["score"] !== null && r["score"] !== undefined ? Number(r["score"]) : null,
+        score:
+          r["score"] !== null && r["score"] !== undefined
+            ? Number(r["score"])
+            : null,
         favorite: Number(r["favorite"]) === 1,
         startedAt: r["started_at"] ? String(r["started_at"]) : null,
         completedAt: r["completed_at"] ? String(r["completed_at"]) : null,
-        repeat: r["repeat_count"] !== null && r["repeat_count"] !== undefined ? Number(r["repeat_count"]) : null,
+        repeat:
+          r["repeat_count"] !== null && r["repeat_count"] !== undefined
+            ? Number(r["repeat_count"])
+            : null,
         tags: normalizeTags(JSON.parse(String(r["tags"] ?? "[]")) as string[]),
         customLists: normalizeTags(
           JSON.parse(String(r["custom_lists"] ?? "[]")) as string[],

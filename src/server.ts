@@ -58,7 +58,8 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      const { handleMediaStreamRequest } = await import("./server/stream-handler.server");
+      const { handleMediaStreamRequest } =
+        await import("./server/stream-handler.server");
       const mediaResponse = await handleMediaStreamRequest(request);
       if (mediaResponse) {
         return mediaResponse;
