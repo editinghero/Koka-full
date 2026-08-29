@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Koka — All-in-one Anime Dashboard" },
+      { title: "Koka" },
       {
         name: "description",
         content:
@@ -137,8 +137,8 @@ function Dashboard() {
   const scored = library.filter((e) => e.score);
   const meanScore = scored.length
     ? (scored.reduce((s, e) => s + (e.score ?? 0), 0) / scored.length).toFixed(
-        1,
-      )
+      1,
+    )
     : "—";
 
   const listSummary = library

@@ -279,6 +279,71 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+function findVideoFilePath(baseDir, slug, season, file) {
+  if (!baseDir || !fs.existsSync(baseDir)) return null;
+
+  // 1. Direct path check
+  const directPath = path.join(baseDir, slug, file);
+  if (fs.existsSync(directPath) && isSafePath(baseDir, directPath)) return directPath;
+
+  if (season && season !== "Season 1") {
+    const directSeasonPath = path.join(baseDir, slug, season, file);
+    if (fs.existsSync(directSeasonPath) && isSafePath(baseDir, directSeasonPath)) return directSeasonPath;
+  }
+
+  // 2. Scan directory to match folder by exact name or normalized slug
+  try {
+    const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+    const targetFolder = entries.find((e) => e.isDirectory() && (
+      e.name === slug ||
+      e.name.toLowerCase() === slug.toLowerCase() ||
+      e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug.toLowerCase()
+    ));
+
+    if (targetFolder) {
+      const folderPath = path.join(baseDir, targetFolder.name);
+
+      // Check root of folder
+      const inFolder = path.join(folderPath, file);
+      if (fs.existsSync(inFolder) && isSafePath(baseDir, inFolder)) return inFolder;
+
+      // Check season subfolder
+      if (season) {
+        const inSeason = path.join(folderPath, season, file);
+        if (fs.existsSync(inSeason) && isSafePath(baseDir, inSeason)) return inSeason;
+      }
+
+      // Scan all subdirectories (seasons)
+      const subEntries = fs.readdirSync(folderPath, { withFileTypes: true });
+      for (const sub of subEntries) {
+        if (sub.isDirectory()) {
+          const subPath = path.join(folderPath, sub.name, file);
+          if (fs.existsSync(subPath) && isSafePath(baseDir, subPath)) return subPath;
+
+          // Case-insensitive file match
+          const nestedFiles = fs.readdirSync(path.join(folderPath, sub.name), { withFileTypes: true });
+          const match = nestedFiles.find((f) => f.isFile() && f.name.toLowerCase() === file.toLowerCase());
+          if (match) {
+            const resolved = path.join(folderPath, sub.name, match.name);
+            if (isSafePath(baseDir, resolved)) return resolved;
+          }
+        }
+      }
+
+      // Root files case-insensitive match
+      const rootMatch = subEntries.find((f) => f.isFile() && f.name.toLowerCase() === file.toLowerCase());
+      if (rootMatch) {
+        const resolved = path.join(folderPath, rootMatch.name);
+        if (isSafePath(baseDir, resolved)) return resolved;
+      }
+    }
+  } catch (err) {
+    console.warn("Path search error:", err.message);
+  }
+
+  return null;
+}
+
   // 4. Video Stream Endpoint (with HTTP 206 Range seeking support)
   if (pathname === "/api/stream/video") {
     const slug = parsedUrl.searchParams.get("slug");
@@ -291,17 +356,9 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    let targetPath = "";
-    if (season && season !== "Season 1") {
-      targetPath = path.join(ANIME_PATH, slug, season, file);
-    } else {
-      targetPath = path.join(ANIME_PATH, slug, file);
-      if (!fs.existsSync(targetPath)) {
-        targetPath = path.join(ANIME_PATH, slug, "Season 1", file);
-      }
-    }
+    const targetPath = findVideoFilePath(ANIME_PATH, slug, season, file);
 
-    if (!isSafePath(ANIME_PATH, targetPath) || !fs.existsSync(targetPath)) {
+    if (!targetPath || !fs.existsSync(targetPath)) {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("Video file not found");
       return;
