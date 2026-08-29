@@ -43,7 +43,7 @@ export function UnlinkedFolderModal({
   onLinkedSuccess,
   onDirectPlay,
 }: UnlinkedFolderModalProps) {
-  const { library, patch } = useLibrary();
+  const { library, upsert } = useLibrary();
   const [query, setQuery] = useState(folder ? folder.folderName : "");
   const [results, setResults] = useState<AnimeMedia[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -88,7 +88,15 @@ export function UnlinkedFolderModal({
       });
       const exists = library.some((e) => e.media.id === target.id);
       if (!exists) {
-        patch(target, { status: "CURRENT", progress: 0 });
+        upsert({
+          media: target,
+          status: "CURRENT",
+          progress: 0,
+          score: null,
+          favorite: false,
+          updatedAt: Date.now(),
+          addedAt: Date.now(),
+        });
       }
       toast.success(`Linked "${folder.folderName}" to "${target.title}"`);
       onLinkedSuccess();

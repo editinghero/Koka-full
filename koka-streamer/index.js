@@ -41,6 +41,30 @@ function getFreshConfig() {
   };
 }
 
+const MIME_TYPES = {
+  ".mp4": "video/mp4",
+  ".mkv": "video/x-matroska",
+  ".webm": "video/webm",
+  ".vtt": "text/vtt",
+  ".srt": "text/plain",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+};
+
+function isSafePath(base, target) {
+  if (!base || !target) return false;
+  const resolvedBase = path.resolve(base);
+  const resolvedTarget = path.resolve(target);
+  return resolvedTarget === resolvedBase || resolvedTarget.startsWith(resolvedBase + path.sep);
+}
+
+function naturalSort(a, b) {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
 const initialConfig = getFreshConfig();
 console.log("=========================================");
 console.log(" Koka Streaming Bridge (Standalone)");
