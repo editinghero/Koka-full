@@ -168,14 +168,12 @@ const server = http.createServer((req, res) => {
             console.warn(`Error scanning anime folder ${dir.name}:`, err.message);
           }
 
-          const hasLocalPoster = fs.existsSync(path.join(folderPath, "poster.jpg")) || fs.existsSync(path.join(folderPath, "cover.jpg"));
           return {
             slug,
             folderName: dir.name,
             folderPath,
             seasons,
             episodeCount: seasons.reduce((acc, s) => acc + s.episodes.length, 0),
-            hasLocalPoster,
           };
         });
       }
@@ -185,53 +183,69 @@ const server = http.createServer((req, res) => {
         const mangaDirs = rootEntries.filter((d) => d.isDirectory());
         
         // 1. Scan manga subdirectories
-        mangaList = mangaDirs.map((dir) => {
+        for (const dir of mangaDirs) {
           const folderPath = path.join(MANGA_PATH, dir.name);
           const slug = dir.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
           let chapters = [];
-
+          
           try {
-            const items = fs.readdirSync(folderPath, { withFileTypes: true });
+            const subItems = fs.readdirSync(folderPath, { withFileTypes: true });
             
-            // Check if folder contains direct image pages
-            const directImages = items.filter((f) => f.isFile() && /\.(jpg|jpeg|png|webp|gif)$/i.test(f.name));
-            if (directImages.length > 0) {
-              chapters = [{
-                file: dir.name,
-                label: "Chapter 1",
-                relativePath: ".",
+            // Check for cbz / zip files
+            const archiveChapters = subItems
+              .filter((f) => f.isFile() && /\.(cbz|zip)$/i.test(f.name))
+              .map((f) => ({
+                file: f.name,
+                label: f.name.replace(/\.[^/.]+$/, ""),
+                relativePath: f.name,
+                format: f.name.endsWith(".cbz") ? "cbz" : "zip",
+              }))
+              .sort((a, b) => naturalSort(a.file, b.file));
+
+            // Check for chapter subdirectories
+            const folderChapters = subItems
+              .filter((d) => d.isDirectory() && !d.name.startsWith("."))
+              .map((d) => ({
+                file: d.name,
+                label: d.name,
+                relativePath: d.name,
                 format: "folder",
-                pageCount: directImages.length,
+              }))
+              .sort((a, b) => naturalSort(a.file, b.file));
+
+            // Check for direct loose images in series directory
+            const looseImages = subItems.filter((f) => f.isFile() && /\.(jpg|jpeg|png|webp|gif)$/i.test(f.name));
+
+            if (archiveChapters.length > 0) {
+              chapters = archiveChapters;
+            } else if (folderChapters.length > 0) {
+              chapters = folderChapters;
+            } else if (looseImages.length > 0) {
+              chapters = [{
+                file: "Chapter 1",
+                label: "Chapter 1",
+                relativePath: "",
+                format: "folder",
               }];
-            } else {
-              chapters = items
-                .filter((item) => item.isDirectory() || /\.(cbz|cbr|zip)$/i.test(item.name))
-                .map((item) => ({
-                  file: item.name,
-                  label: item.name.replace(/\.[^/.]+$/, ""),
-                  relativePath: item.name,
-                  format: item.isDirectory() ? "folder" : item.name.endsWith(".cbz") ? "cbz" : "zip",
-                }))
-                .sort((a, b) => naturalSort(a.file, b.file));
             }
           } catch (err) {
             console.warn(`Error scanning manga folder ${dir.name}:`, err.message);
           }
 
-          const hasLocalPoster = fs.existsSync(path.join(folderPath, "poster.jpg")) || fs.existsSync(path.join(folderPath, "cover.jpg"));
-          return {
-            slug,
-            folderName: dir.name,
-            folderPath,
-            chapters,
-            chapterCount: chapters.length,
-            hasLocalPoster,
-          };
-        });
+          if (chapters.length > 0) {
+            mangaList.push({
+              slug,
+              folderName: dir.name,
+              folderPath,
+              chapters,
+              chapterCount: chapters.length,
+            });
+          }
+        }
 
-        // 2. Scan any root-level CBZ/ZIP files
-        const rootMangaFiles = rootEntries.filter((f) => f.isFile() && /\.(cbz|cbr|zip)$/i.test(f.name));
-        for (const file of rootMangaFiles) {
+        // 2. Scan root manga files (.cbz / .zip files directly in MANGA_PATH)
+        const rootArchives = rootEntries.filter((f) => f.isFile() && /\.(cbz|zip)$/i.test(f.name));
+        for (const file of rootArchives) {
           const baseName = file.name.replace(/\.[^/.]+$/, "");
           const slug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
           mangaList.push({
@@ -245,7 +259,6 @@ const server = http.createServer((req, res) => {
               format: file.name.endsWith(".cbz") ? "cbz" : "zip",
             }],
             chapterCount: 1,
-            hasLocalPoster: false,
           });
         }
       }
@@ -322,52 +335,6 @@ const server = http.createServer((req, res) => {
       });
       fs.createReadStream(targetPath).pipe(res);
     }
-    return;
-  }
-
-  // 5. Poster / Cover Art Endpoint
-  if (pathname === "/api/media/poster") {
-    const slug = parsedUrl.searchParams.get("slug");
-    const type = parsedUrl.searchParams.get("type") || "anime";
-    const baseDir = type === "manga" ? MANGA_PATH : ANIME_PATH;
-
-    if (!slug) {
-      res.writeHead(400, { "Content-Type": "text/plain" });
-      res.end("Missing slug");
-      return;
-    }
-
-    const possibleFiles = ["poster.jpg", "poster.png", "cover.jpg", "cover.png", "poster.webp", "folder.jpg"];
-    
-    // Check direct slug or scan directory for matching folder
-    let targetDir = path.join(baseDir, slug);
-    if (!fs.existsSync(targetDir) && fs.existsSync(baseDir)) {
-      try {
-        const entries = fs.readdirSync(baseDir, { withFileTypes: true });
-        const match = entries.find((e) => e.isDirectory() && (
-          e.name === slug ||
-          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug
-        ));
-        if (match) targetDir = path.join(baseDir, match.name);
-      } catch {
-        /* ignore */
-      }
-    }
-
-    if (fs.existsSync(targetDir)) {
-      for (const name of possibleFiles) {
-        const p = path.join(targetDir, name);
-        if (isSafePath(baseDir, p) && fs.existsSync(p)) {
-          const ext = path.extname(p).toLowerCase();
-          res.writeHead(200, { "Content-Type": MIME_TYPES[ext] || "image/jpeg" });
-          fs.createReadStream(p).pipe(res);
-          return;
-        }
-      }
-    }
-
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.end("Cover not found");
     return;
   }
 

@@ -666,12 +666,6 @@ function LibraryPage() {
 
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                 {filteredUnlinked.map((folder) => {
-                  const posterUrl = folder.hasLocalPoster
-                    ? buildStreamUrl("/api/media/poster", {
-                        slug: folder.slug,
-                        type: mode.toLowerCase(),
-                      })
-                    : null;
                   const count =
                     mode === "MANGA"
                       ? `${(folder as ScannedManga).chapterCount} chapters`
@@ -684,15 +678,7 @@ function LibraryPage() {
                       className="group cursor-pointer rounded-xl border border-dashed border-border bg-card p-2.5 transition-all duration-200 hover:border-primary hover:shadow-md flex flex-col justify-between"
                     >
                       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-secondary/50 flex items-center justify-center mb-2">
-                        {posterUrl ? (
-                          <img
-                            src={posterUrl}
-                            alt={folder.folderName}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <HardDriveDownload className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
-                        )}
+                        <HardDriveDownload className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
                         <div className="absolute top-1.5 right-1.5 bg-background/90 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded shadow-sm border border-border">
                           Unlinked
                         </div>
@@ -703,7 +689,7 @@ function LibraryPage() {
                           {folder.folderName}
                         </h4>
                         <span className="text-[11px] text-muted-foreground block truncate">
-                          {count} · Click to link / play
+                          {count} · Click to link to AniList
                         </span>
                       </div>
                     </div>
