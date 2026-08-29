@@ -1,0 +1,256 @@
+
+> koka@ lint /app
+> eslint .
+
+
+/app/src/components/AnimeCard.tsx
+  7:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/app/src/components/LiveNewsFeed.tsx
+  149:37  error  Replace `·?·formatRelativeTime(new·Date(lastUpdated).toISOString())` with `⏎····?·formatRelativeTime(new·Date(lastUpdated).toISOString())⏎···`                                     prettier/prettier
+  211:59  error  Replace `Select·Networks:` with `⏎··············Select·Networks:⏎············`                                                                                                     prettier/prettier
+  225:70  error  Replace `(s)·=>·s.id` with `⏎······················(s)·=>·s.id,⏎····················`                                                                                              prettier/prettier
+  269:46  error  Replace `{failedSources.length·>·1·?·"s"·:·""}·unavailable·on·last·check` with `⏎················{failedSources.length·>·1·?·"s"·:·""}·unavailable·on·last·check⏎···············`  prettier/prettier
+  301:31  error  Replace `"mr-1.5·h-3.5·w-3.5",·isRefreshing·&&·"animate-spin"` with `⏎··················"mr-1.5·h-3.5·w-3.5",⏎··················isRefreshing·&&·"animate-spin",⏎················`  prettier/prettier
+  315:80  error  Insert `⏎···········`                                                                                                                                                              prettier/prettier
+  325:31  error  Replace `"mr-1.5·h-3.5·w-3.5",·isRefreshing·&&·"animate-spin"` with `⏎··················"mr-1.5·h-3.5·w-3.5",⏎··················isRefreshing·&&·"animate-spin",⏎················`  prettier/prettier
+
+/app/src/components/LocalMediaLinkModal.tsx
+    2:9   error  Replace `·FolderCheck,·FolderPlus,·Link·as·LinkIcon,·Search,·Unlink,·X·` with `⏎··FolderCheck,⏎··FolderPlus,⏎··Link·as·LinkIcon,⏎··Search,⏎··Unlink,⏎··X,⏎`          prettier/prettier
+   64:21  error  Replace ``Linked·"${media.title}"·to·local·folder·"${folder.folderName}"`` with `⏎········`Linked·"${media.title}"·to·local·folder·"${folder.folderName}"`,⏎······`  prettier/prettier
+  102:81  error  Insert `⏎···········`                                                                                                                                                prettier/prettier
+  111:34  error  Insert `{"·"}⏎···············`                                                                                                                                       prettier/prettier
+  140:75  error  Insert `⏎·············`                                                                                                                                              prettier/prettier
+
+/app/src/components/NotificationsDropdown.tsx
+  23:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/app/src/components/UnlinkedFolderModal.tsx
+  117:77  error  Insert `⏎···············`                                                                                                                                                                                                                                prettier/prettier
+  127:69  error  Replace `Quick·Launch` with `⏎················Quick·Launch⏎··············`                                                                                                                                                                               prettier/prettier
+  128:55  error  Replace `Open·player/reader·directly·without·linking` with `⏎················Open·player/reader·directly·without·linking⏎··············`                                                                                                                 prettier/prettier
+  164:18  error  Replace `·type="submit"·size="sm"·disabled={isSearching}·className="h-9·text-xs·font-semibold"` with `⏎············type="submit"⏎············size="sm"⏎············disabled={isSearching}⏎············className="h-9·text-xs·font-semibold"⏎··········`  prettier/prettier
+  173:27  error  Replace `·?·"Searching·AniList..."` with `⏎················?·"Searching·AniList..."⏎···············`                                                                                                                                                     prettier/prettier
+  198:38  error  Replace `·{item.seasonYear·??·item.season·??·"Series"}··` with `{"·"}⏎······················{item.seasonYear·??·item.season·??·"Series"}··{"·"}⏎·····················`                                                                                   prettier/prettier
+
+/app/src/components/player/VideoPlayer.tsx
+  110:9   error    Replace `initialPosition·>·0·&&·initialPosition·<·videoRef.current.duration·-·10` with `⏎······initialPosition·>·0·&&⏎······initialPosition·<·videoRef.current.duration·-·10⏎····`                                                                               prettier/prettier
+  169:20  warning  The ref value 'videoRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'videoRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+  193:16  error    Replace `videoRef.current.duration,·videoRef.current.currentTime·+·seconds` with `⏎········videoRef.current.duration,⏎········videoRef.current.currentTime·+·seconds,⏎······`                                                                                    prettier/prettier
+  270:11  error    Replace `["input",·"textarea"].includes((e.target·as·HTMLElement)?.tagName?.toLowerCase()))` with `⏎········["input",·"textarea"].includes(⏎··········(e.target·as·HTMLElement)?.tagName?.toLowerCase(),⏎········)⏎······)⏎·······`                              prettier/prettier
+  309:6   warning  React Hook useEffect has a missing dependency: 'seekRelative'. Either include it or remove the dependency array                                                                                                                                                  react-hooks/exhaustive-deps
+  475:40  error    Replace `<Check·className="w-3.5·h-3.5·ml-2·shrink-0"·/>` with `(⏎··························<Check·className="w-3.5·h-3.5·ml-2·shrink-0"·/>⏎························)`                                                                                           prettier/prettier
+  550:44  error    Replace `<Check·className="w-3·h-3·ml-2·shrink-0"·/>` with `(⏎················<Check·className="w-3·h-3·ml-2·shrink-0"·/>⏎··············)`                                                                                                                       prettier/prettier
+
+/app/src/components/reader/MangaReader.tsx
+   156:57  error    Replace `⏎····initialPrefs.contrast,⏎··` with `initialPrefs.contrast`                                                                                                                                                                                                                                                                                        prettier/prettier
+   258:43  error    Delete `⏎·······`                                                                                                                                                                                                                                                                                                                                            prettier/prettier
+   629:25  error    Replace `·wasDraggingRef.current·=·false;` with `⏎········wasDraggingRef.current·=·false;⏎·····`                                                                                                                                                                                                                                                             prettier/prettier
+   657:25  error    Replace `·wasDraggingRef.current·=·false;` with `⏎········wasDraggingRef.current·=·false;⏎·····`                                                                                                                                                                                                                                                             prettier/prettier
+   674:11  error    Expected an assignment or function call and instead saw an expression                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-expressions
+   677:11  error    Expected an assignment or function call and instead saw an expression                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-expressions
+   724:6   warning  React Hook useEffect has missing dependencies: 'nextPage' and 'prevPage'. Either include them or remove the dependency array                                                                                                                                                                                                                                 react-hooks/exhaustive-deps
+   802:21  error    Insert `⏎·····`                                                                                                                                                                                                                                                                                                                                              prettier/prettier
+   804:17  error    Replace `·`${scale·!==·1·?·`scale(${scale})`·:·""}·${isPanned·?·`translate(${panOffset.x·/·scale}px,·${panOffset.y·/·scale}px)`·:·""}`.trim()·||` with `⏎········`${scale·!==·1·?·`scale(${scale})`·:·""}·${isPanned·?·`translate(${panOffset.x·/·scale}px,·${panOffset.y·/·scale}px)`·:·""}`.trim()·||⏎·······`                                             prettier/prettier
+   823:31  error    Replace `·?·"bg-black·text-foreground"` with `⏎··········?·"bg-black·text-foreground"⏎·········`                                                                                                                                                                                                                                                             prettier/prettier
+   845:18  error    Replace `·width="100%"·height="100%"·filter="url(#mangaPaperGrain)"·fill="#9e8a75"` with `⏎··············width="100%"⏎··············height="100%"⏎··············filter="url(#mangaPaperGrain)"⏎··············fill="#9e8a75"⏎···········`                                                                                                                     prettier/prettier
+   995:36  error    Replace `·?·"text-primary·bg-primary/10"` with `⏎······················?·"text-primary·bg-primary/10"⏎·····················`                                                                                                                                                                                                                                 prettier/prettier
+  1167:65  error    Replace `{zoomLevel}%` with `⏎··························{zoomLevel}%⏎························`                                                                                                                                                                                                                                                               prettier/prettier
+  1235:40  error    Insert `⏎·····························`                                                                                                                                                                                                                                                                                                                      prettier/prettier
+  1277:43  error    Replace `·updatePreference({·filterMode:·cKey·})` with `⏎······························updatePreference({·filterMode:·cKey·})⏎····························`                                                                                                                                                                                                  prettier/prettier
+  1308:39  error    Replace `<Check·className="w-3·h-3·text-primary"·/>` with `(⏎··························<Check·className="w-3·h-3·text-primary"·/>⏎························)`                                                                                                                                                                                                 prettier/prettier
+  1445:34  error    Replace `(⏎····················<Check·className="w-3.5·h-3.5·shrink-0"·/>⏎··················)` with `<Check·className="w-3.5·h-3.5·shrink-0"·/>`                                                                                                                                                                                                             prettier/prettier
+  1459:23  error    Replace `"flex-1·w-full·h-full·overflow-y-auto·flex·justify-center·items-start·relative·bg-muted/5",·zoomLevel·>·100·?·"overflow-x-auto"·:·"overflow-x-hidden"` with `⏎··········"flex-1·w-full·h-full·overflow-y-auto·flex·justify-center·items-start·relative·bg-muted/5",⏎··········zoomLevel·>·100·?·"overflow-x-auto"·:·"overflow-x-hidden",⏎········`  prettier/prettier
+  1470:20  error    Replace `(fit·===·"height"·||·fit·===·"original")·?·{·width:·"100%",·maxWidth:·fit·===·"original"·?·"100vw"·:·"none"·}` with `⏎··············fit·===·"height"·||·fit·===·"original"⏎················?·{⏎····················width:·"100%",⏎····················maxWidth:·fit·===·"original"·?·"100vw"·:·"none",⏎··················}⏎···············`         prettier/prettier
+  1471:1   error    Replace `··············width:·fit·===·"width"·?·`${zoomLevel}%`` with `····················width:⏎······················fit·===·"width"⏎························?·`${zoomLevel}%`⏎·······················`                                                                                                                                                   prettier/prettier
+  1472:15  error    Replace `maxWidth:·zoomLevel·>·100·?·"none"·:·(fit·===·"width"·?·"100%"·:·`${zoomLevel}vw`)` with `······maxWidth:⏎······················zoomLevel·>·100⏎························?·"none"⏎························:·fit·===·"width"⏎··························?·"100%"⏎··························:·`${zoomLevel}vw``                                         prettier/prettier
+  1473:13  error    Replace `}` with `······}⏎············`                                                                                                                                                                                                                                                                                                                      prettier/prettier
+  1507:17  error    Expected an assignment or function call and instead saw an expression                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-expressions
+  1524:17  error    Expected an assignment or function call and instead saw an expression                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-expressions
+  1539:33  error    Replace `getSingleImageClass(),·"rounded-md·shadow-2xl·transition-all·duration-200"` with `⏎····················getSingleImageClass(),⏎····················"rounded-md·shadow-2xl·transition-all·duration-200",⏎··················`                                                                                                                          prettier/prettier
+  1563:51  error    Replace `·?·"rounded-r-md"` with `⏎····························?·"rounded-r-md"⏎···························`                                                                                                                                                                                                                                                 prettier/prettier
+  1576:51  error    Replace `·?·"rounded-l-md"` with `⏎····························?·"rounded-l-md"⏎···························`                                                                                                                                                                                                                                                 prettier/prettier
+  1605:13  error    Expected an assignment or function call and instead saw an expression                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-expressions
+  1607:13  error    Expected an assignment or function call and instead saw an expression                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-expressions
+
+/app/src/components/ui/badge.tsx
+  37:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/app/src/components/ui/button.tsx
+  58:18  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/app/src/components/ui/form.tsx
+  171:3  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/app/src/components/ui/navigation-menu.tsx
+  119:3  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/app/src/components/ui/sidebar.tsx
+  778:3  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/app/src/components/ui/toggle.tsx
+  43:18  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/app/src/lib/auth.functions.ts
+  24:14  error  Replace `⏎····(data:·{·email:·string;·name:·string;·password:·string·})·=>·data,⏎··` with `(data:·{·email:·string;·name:·string;·password:·string·})·=>·data`  prettier/prettier
+
+/app/src/lib/data.functions.ts
+   93:14  error  Replace `⏎····(data:·{·entries:·LibraryEntry[];·types:·MediaType[]·})·=>·data,⏎··` with `(data:·{·entries:·LibraryEntry[];·types:·MediaType[]·})·=>·data`  prettier/prettier
+  135:14  error  Replace `⏎····(data:·{·source:·string;·mode:·string;·count:·number·})·=>·data,⏎··` with `(data:·{·source:·string;·mode:·string;·count:·number·})·=>·data`  prettier/prettier
+
+/app/src/lib/gemini.ts
+  106:16  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/app/src/lib/importers.ts
+  83:11  error  Replace `|·string⏎·········` with `string`  prettier/prettier
+
+/app/src/lib/media.functions.ts
+   26:42  error  Replace `·await·import(⏎······"@/server/scanner.server"⏎····` with `⏎······await·import("@/server/scanner.server"`                                                                             prettier/prettier
+  220:23  error  Replace `metaPath,·JSON.stringify(data.metaJson,·null,·2),·"utf-8"` with `⏎··········metaPath,⏎··········JSON.stringify(data.metaJson,·null,·2),⏎··········"utf-8",⏎········`                  prettier/prettier
+  261:13  error  Replace `·animePath?:·string;·mangaPath?:·string;·anilistUsername?:·string·})·=>⏎·····` with `⏎······animePath?:·string;⏎······mangaPath?:·string;⏎······anilistUsername?:·string;⏎····})·=>`  prettier/prettier
+
+/app/src/lib/news/dedupe.ts
+   75:47  error  Insert `⏎·······`                                                                   prettier/prettier
+   99:33  error  Insert `⏎·········`                                                                 prettier/prettier
+  100:32  error  Insert `⏎·········`                                                                 prettier/prettier
+  104:33  error  Replace `·article.imageUrl·&&` with `⏎············article.imageUrl·&&⏎···········`  prettier/prettier
+
+/app/src/lib/news/filter.ts
+  9:39  error  Replace `articles:·NewsArticle[],·maxAgeMs·=·MAX_AGE_MS` with `⏎··articles:·NewsArticle[],⏎··maxAgeMs·=·MAX_AGE_MS,⏎`  prettier/prettier
+
+/app/src/lib/news/news.functions.ts
+  11:25  error  Insert `⏎·····`                   prettier/prettier
+  12:7   error  Insert `··`                       prettier/prettier
+  13:1   error  Insert `··`                       prettier/prettier
+  35:15  error  Replace `"Accept"` with `Accept`  prettier/prettier
+
+/app/src/lib/news/parser.ts
+   43:28  error  Replace ``<${tagName}(?:\\s+[^>]*)?>([\\s\\S]*?)<\\/${tagName}>`,·"i"` with `⏎····`<${tagName}(?:\\s+[^>]*)?>([\\s\\S]*?)<\\/${tagName}>`,⏎····"i",⏎··`                                                                                                                                                   prettier/prettier
+   56:28  error  Replace `xml:·string,·tagName:·string,·attrName:·string` with `⏎··xml:·string,⏎··tagName:·string,⏎··attrName:·string,⏎`                                                                                                                                                                                   prettier/prettier
+   57:28  error  Replace ``<${tagName}[^>]*\\s+${attrName}=["']([^"']+)["'][^>]*\\/?>`,·"i"` with `⏎····`<${tagName}[^>]*\\s+${attrName}=["']([^"']+)["'][^>]*\\/?>`,⏎····"i",⏎··`                                                                                                                                         prettier/prettier
+   65:43  error  Replace `/<media:thumbnail[^>]*>([\s\S]*?)<\/media:thumbnail>/i` with `⏎····/<media:thumbnail[^>]*>([\s\S]*?)<\/media:thumbnail>/i,⏎··`                                                                                                                                                                   prettier/prettier
+   74:40  error  Replace `/<media:thumbnail[^>]*\burl=["']([^"']+)["']/i` with `⏎····/<media:thumbnail[^>]*\burl=["']([^"']+)["']/i,⏎··`                                                                                                                                                                                   prettier/prettier
+   75:7   error  Replace `mediaThumbAttr·&&·mediaThumbAttr[1]·&&·/^https?:\/\//i.test(mediaThumbAttr[1])` with `⏎····mediaThumbAttr·&&⏎····mediaThumbAttr[1]·&&⏎····/^https?:\/\//i.test(mediaThumbAttr[1])⏎··`                                                                                                            prettier/prettier
+   80:42  error  Replace `/<media:content[^>]*\burl=["']([^"']+)["']/i` with `⏎····/<media:content[^>]*\burl=["']([^"']+)["']/i,⏎··`                                                                                                                                                                                       prettier/prettier
+   81:7   error  Replace `mediaContentAttr·&&·mediaContentAttr[1]·&&·/^https?:\/\//i.test(mediaContentAttr[1])` with `⏎····mediaContentAttr·&&⏎····mediaContentAttr[1]·&&⏎····/^https?:\/\//i.test(mediaContentAttr[1])⏎··`                                                                                                prettier/prettier
+   86:41  error  Replace `/<media:content[^>]*>([\s\S]*?)<\/media:content>/i` with `⏎····/<media:content[^>]*>([\s\S]*?)<\/media:content>/i,⏎··`                                                                                                                                                                           prettier/prettier
+   95:40  error  Replace `/<enclosure[^>]*\burl=["']([^"']+)["']/i` with `⏎····/<enclosure[^>]*\burl=["']([^"']+)["']/i,⏎··`                                                                                                                                                                                               prettier/prettier
+   96:7   error  Replace `enclosureMatch·&&·enclosureMatch[1]·&&·/^https?:\/\//i.test(enclosureMatch[1])` with `⏎····enclosureMatch·&&⏎····enclosureMatch[1]·&&⏎····/^https?:\/\//i.test(enclosureMatch[1])⏎··`                                                                                                            prettier/prettier
+  125:34  error  Replace `/https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s"'<>]*)?/i` with `⏎····/https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s"'<>]*)?/i,⏎··`                                                                                                                                       prettier/prettier
+  126:7   error  Replace `urlMatch·&&·urlMatch[0]·&&·!urlMatch[0].includes("1x1")·&&·!urlMatch[0].includes("/emoji/")·&&·!urlMatch[0].includes("s.w.org")` with `⏎····urlMatch·&&⏎····urlMatch[0]·&&⏎····!urlMatch[0].includes("1x1")·&&⏎····!urlMatch[0].includes("/emoji/")·&&⏎····!urlMatch[0].includes("s.w.org")⏎··`  prettier/prettier
+  134:30  error  Replace `xml:·string,·sourceId:·string,·sourceName:·string` with `⏎··xml:·string,⏎··sourceId:·string,⏎··sourceName:·string,⏎`                                                                                                                                                                             prettier/prettier
+  139:22  error  Insert `⏎···`                                                                                                                                                                                                                                                                                             prettier/prettier
+  203:19  error  Insert `⏎·······`                                                                                                                                                                                                                                                                                         prettier/prettier
+
+/app/src/lib/news/sources.ts
+  16:17  error  Insert `⏎·····`  prettier/prettier
+
+/app/src/lib/news/useLiveNews.ts
+   82:55  error    Replace `()·=>·!cachedFeed·||·cachedFeed.articles.length·===·0` with `⏎····()·=>·!cachedFeed·||·cachedFeed.articles.length·===·0,⏎··`                                                                                                                     prettier/prettier
+  134:13  error    Replace `res.articles.length·===·0·&&·res.failedSources.length·>·0·&&·res.successfulSources.length·===·0` with `⏎··········res.articles.length·===·0·&&⏎··········res.failedSources.length·>·0·&&⏎··········res.successfulSources.length·===·0⏎········`  prettier/prettier
+  135:20  error    Replace `"Unable·to·connect·to·selected·news·sources.·Please·try·again."` with `⏎············"Unable·to·connect·to·selected·news·sources.·Please·try·again.",⏎··········`                                                                                 prettier/prettier
+  139:18  error    Replace `"Unable·to·load·news·right·now.·Please·check·your·connection."` with `⏎··········"Unable·to·load·news·right·now.·Please·check·your·connection.",⏎········`                                                                                       prettier/prettier
+  156:6   warning  React Hook useEffect has a missing dependency: 'refreshNews'. Either include it or remove the dependency array                                                                                                                                            react-hooks/exhaustive-deps
+
+/app/src/lib/types.ts
+  4:3  error  Replace `|·"CURRENT"⏎··|·"PLANNING"⏎··|·"COMPLETED"⏎··|·"PAUSED"⏎··|·"DROPPED"⏎·` with `"CURRENT"·|·"PLANNING"·|·"COMPLETED"·|·"PAUSED"·|·"DROPPED"`  prettier/prettier
+
+/app/src/routes/anime.$id.tsx
+  120:53  error  React Hook "useQuery" is called conditionally. React Hooks must be called in the exact same order in every component render                                                                                            react-hooks/rules-of-hooks
+  126:41  error  React Hook "useState" is called conditionally. React Hooks must be called in the exact same order in every component render                                                                                            react-hooks/rules-of-hooks
+  132:45  error  React Hook "useState" is called conditionally. React Hooks must be called in the exact same order in every component render                                                                                            react-hooks/rules-of-hooks
+  137:45  error  React Hook "useState" is called conditionally. React Hooks must be called in the exact same order in every component render                                                                                            react-hooks/rules-of-hooks
+  140:22  error  React Hook "useMemo" is called conditionally. React Hooks must be called in the exact same order in every component render                                                                                             react-hooks/rules-of-hooks
+  146:21  error  Replace `·media.title.toLowerCase().replace(/[^a-z0-9]+/g,·"-")` with `⏎··········media.title⏎············.toLowerCase()⏎············.replace(/[^a-z0-9]+/g,·"-")⏎············`                                        prettier/prettier
+  152:22  error  React Hook "useMemo" is called conditionally. React Hooks must be called in the exact same order in every component render. Did you accidentally call a React Hook after an early return?                              react-hooks/rules-of-hooks
+  158:21  error  Replace `·media.title.toLowerCase().replace(/[^a-z0-9]+/g,·"-")` with `⏎··········media.title⏎············.toLowerCase()⏎············.replace(/[^a-z0-9]+/g,·"-")⏎············`                                        prettier/prettier
+  164:57  error  React Hook "useQuery" is called conditionally. React Hooks must be called in the exact same order in every component render. Did you accidentally call a React Hook after an early return?                             react-hooks/rules-of-hooks
+  171:55  error  React Hook "useQuery" is called conditionally. React Hooks must be called in the exact same order in every component render. Did you accidentally call a React Hook after an early return?                             react-hooks/rules-of-hooks
+  432:34  error  Replace `·?·"Local·Manga·Chapters"` with `⏎··················?·"Local·Manga·Chapters"⏎·················`                                                                                                               prettier/prettier
+  452:40  error  Replace `·?·"Change·Linked·Folder"` with `⏎················?·"Change·Linked·Folder"⏎···············`                                                                                                                   prettier/prettier
+  465:30  error  Insert `⏎···············`                                                                                                                                                                                              prettier/prettier
+  471:48  error  Replace `·?·0` with `⏎··················?·0⏎·················`                                                                                                                                                         prettier/prettier
+  484:61  error  Replace `·?·"Resume·Watching"` with `⏎························?·"Resume·Watching"⏎·······················`                                                                                                             prettier/prettier
+  502:59  error  Replace `·?·"Resume"` with `⏎······················?·"Resume"⏎·····················`                                                                                                                                   prettier/prettier
+  523:78  error  Insert `⏎···························`                                                                                                                                                                                  prettier/prettier
+  533:58  error  Replace `·?·0` with `⏎································?·0⏎·······························`                                                                                                                             prettier/prettier
+  601:59  error  Replace `·?·"Resume·Reading"` with `⏎························?·"Resume·Reading"⏎·······················`                                                                                                               prettier/prettier
+  604:34  error  Replace `·{latestRead·&&·!latestRead.completed·?·`(Page·${nextPage})`` with `{"·"}⏎······················{latestRead·&&·!latestRead.completed⏎························?·`(Page·${nextPage})`⏎·······················`  prettier/prettier
+  618:57  error  Replace `·?·"Resume·Reading"` with `⏎······················?·"Resume·Reading"⏎·····················`                                                                                                                   prettier/prettier
+  627:48  error  Replace `(r)·=>·r.chapterFile·===·ch.file` with `⏎··················(r)·=>·r.chapterFile·===·ch.file,⏎················`                                                                                                prettier/prettier
+  673:23  error  Replace `·{mode·===·"MANGA"·?·"manga·chapter·files"·:·"anime·video·files"}` with `{"·"}⏎··············{mode·===·"MANGA"·?·"manga·chapter·files"·:·"anime·video·files"}{"·"}⏎·············`                             prettier/prettier
+  698:29  error  Replace `·season:·newSeason,·file:·newFile,·initialPosition:·0` with `⏎··············season:·newSeason,⏎··············file:·newFile,⏎··············initialPosition:·0,⏎···········`                                    prettier/prettier
+  733:29  error  Replace `·?·(scanState?.manga·??·[])` with `⏎··············?·(scanState?.manga·??·[])⏎·············`                                                                                                                   prettier/prettier
+
+/app/src/routes/library.tsx
+  274:72  error    Replace `ScannedAnime·|·ScannedManga·|·null` with `⏎····ScannedAnime·|·ScannedManga·|·null⏎··`                                                                                                                               prettier/prettier
+  277:79  error    Replace `null` with `⏎····null,⏎··`                                                                                                                                                                                          prettier/prettier
+  278:59  error    Replace `·manga:·ScannedManga;·chapterFile:·string` with `⏎····manga:·ScannedManga;⏎····chapterFile:·string;⏎·`                                                                                                              prettier/prettier
+  377:15  error    Replace `(e)·=>·!downloadedOnly·||·isMediaDownloaded(e.media.id,·e.media.title)` with `⏎········(e)·=>·!downloadedOnly·||·isMediaDownloaded(e.media.id,·e.media.title),⏎······`                                              prettier/prettier
+  406:26  error    Replace `·!!genreMatch·||·!!studioMatch·||·!!tagMatch·||` with `⏎··········!!genreMatch·||⏎··········!!studioMatch·||⏎··········!!tagMatch·||⏎·········`                                                                     prettier/prettier
+  415:6   warning  React Hook useMemo has a missing dependency: 'isMediaDownloaded'. Either include it or remove the dependency array                                                                                                           react-hooks/exhaustive-deps
+  415:7   error    Replace `library,·status,·genre,·customList,·query,·sort,·downloadedOnly,·scanState,·mode` with `⏎····library,⏎····status,⏎····genre,⏎····customList,⏎····query,⏎····sort,⏎····downloadedOnly,⏎····scanState,⏎····mode,⏎··`  prettier/prettier
+  420:35  error    Insert `⏎······`                                                                                                                                                                                                             prettier/prettier
+  421:1   error    Replace `······f.folderName.toLowerCase().includes(q)·||` with `········f.folderName.toLowerCase().includes(q)·||⏎·······`                                                                                                   prettier/prettier
+  582:34  error    Delete `·(`                                                                                                                                                                                                                  prettier/prettier
+  583:13  error    Insert `(`                                                                                                                                                                                                                   prettier/prettier
+  611:14  error    Delete `⏎··········`                                                                                                                                                                                                         prettier/prettier
+
+/app/src/routes/news.tsx
+   22:17  error  Insert `⏎·········`  prettier/prettier
+  155:1   error  Delete `⏎`           prettier/prettier
+
+/app/src/routes/settings.tsx
+  716:58  error  Replace `Local·Media·Library` with `⏎········Local·Media·Library⏎······`                                                                                                                  prettier/prettier
+  718:70  error  Replace `·collection.⏎········Episodes,·seasons,·manga·image·folders,·and·comic·archives` with `⏎········collection.·Episodes,·seasons,·manga·image·folders,·and·comic·archives⏎·······`  prettier/prettier
+  750:78  error  Insert `⏎··············`                                                                                                                                                                  prettier/prettier
+  753:78  error  Insert `⏎··············`                                                                                                                                                                  prettier/prettier
+  773:25  error  Replace `·className={cn("h-3.5·w-3.5",·isScanning·&&·"animate-spin")}` with `⏎················className={cn("h-3.5·w-3.5",·isScanning·&&·"animate-spin")}⏎·············`                  prettier/prettier
+
+/app/src/server.ts
+  61:43  error  Insert `⏎·······`  prettier/prettier
+
+/app/src/server/media.server.ts
+    1:9   error  Replace `·createReadStream,·existsSync,·readdirSync,·readFileSync,·statSync·` with `⏎··createReadStream,⏎··existsSync,⏎··readdirSync,⏎··readFileSync,⏎··statSync,⏎`                            prettier/prettier
+   80:15  error  Replace `(f)·=>·f.isFile()·&&·IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase())` with `⏎········(f)·=>⏎··········f.isFile()·&&·IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),⏎······`  prettier/prettier
+  113:56  error  Replace `·filepath:·chapterPath` with `⏎········filepath:·chapterPath,⏎·····`                                                                                                                  prettier/prettier
+  159:15  error  Replace `(f)·=>·f.isFile()·&&·IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase())` with `⏎········(f)·=>⏎··········f.isFile()·&&·IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),⏎······`  prettier/prettier
+  192:56  error  Replace `·filepath:·chapterPath` with `⏎········filepath:·chapterPath,⏎·····`                                                                                                                  prettier/prettier
+
+/app/src/server/repo.server.ts
+  135:16  error  Replace `user.id,·user.email,·user.name,·user.password_hash,·user.created_at` with `⏎··········user.id,⏎··········user.email,⏎··········user.name,⏎··········user.password_hash,⏎··········user.created_at,⏎········`                     prettier/prettier
+  165:22  error  Insert `⏎·········`                                                                                                                                                                                                                       prettier/prettier
+  218:15  error  Replace `·r["score"]·!==·null·&&·r["score"]·!==·undefined·?·Number(r["score"])` with `⏎··········r["score"]·!==·null·&&·r["score"]·!==·undefined⏎············?·Number(r["score"])⏎···········`                                            prettier/prettier
+  222:16  error  Replace `·r["repeat_count"]·!==·null·&&·r["repeat_count"]·!==·undefined·?·Number(r["repeat_count"])` with `⏎··········r["repeat_count"]·!==·null·&&·r["repeat_count"]·!==·undefined⏎············?·Number(r["repeat_count"])⏎···········`  prettier/prettier
+
+/app/src/server/scanner.server.ts
+    1:9   error  Replace `·existsSync,·readdirSync,·readFileSync,·statSync,·writeFileSync·` with `⏎··existsSync,⏎··readdirSync,⏎··readFileSync,⏎··statSync,⏎··writeFileSync,⏎`                                                                                 prettier/prettier
+   61:35  error  Replace `".mp4",·".mkv",·".webm",·".avi",·".mov",·".flv",·".ts",·".m4v"` with `⏎··".mp4",⏎··".mkv",⏎··".webm",⏎··".avi",⏎··".mov",⏎··".flv",⏎··".ts",⏎··".m4v",⏎`                                                                             prettier/prettier
+   63:35  error  Replace `".jpg",·".jpeg",·".png",·".webp",·".avif",·".gif"` with `⏎··".jpg",⏎··".jpeg",⏎··".png",⏎··".webp",⏎··".avif",⏎··".gif",⏎`                                                                                                           prettier/prettier
+   66:25  error  Replace `"watching",·"planned",·"finished",·"completed",·"dropped",·"on_hold",·"reading",·"paused"` with `⏎··"watching",⏎··"planned",⏎··"finished",⏎··"completed",⏎··"dropped",⏎··"on_hold",⏎··"reading",⏎··"paused",⏎`                       prettier/prettier
+  291:25  error  Replace `ext·===·".cbr"·||·ext·===·".rar"·?·"cbr"·:·ext·===·".cbz"·?·"cbz"·:·"zip"` with `⏎··········ext·===·".cbr"·||·ext·===·".rar"⏎············?·"cbr"⏎············:·ext·===·".cbz"⏎··············?·"cbz"⏎··············:·"zip"⏎········`  prettier/prettier
+  305:17  error  Insert `⏎···········`                                                                                                                                                                                                                         prettier/prettier
+  406:39  error  Replace `"SELECT·media_type,·media_id,·folder_slug,·folder_name·FROM·local_media_links"` with `⏎······"SELECT·media_type,·media_id,·folder_slug,·folder_name·FROM·local_media_links",⏎····`                                                   prettier/prettier
+  443:53  error  Replace `·withFileTypes:·true` with `⏎············withFileTypes:·true,⏎·········`                                                                                                                                                             prettier/prettier
+  451:48  error  Replace `titlePath,·td.name,·entry.name,·animeLinks` with `⏎··············titlePath,⏎··············td.name,⏎··············entry.name,⏎··············animeLinks,⏎············`                                                                 prettier/prettier
+  459:46  error  Replace `titlePath,·entry.name,·undefined,·animeLinks` with `⏎············titlePath,⏎············entry.name,⏎············undefined,⏎············animeLinks,⏎··········`                                                                       prettier/prettier
+  484:53  error  Replace `·withFileTypes:·true` with `⏎············withFileTypes:·true,⏎·········`                                                                                                                                                             prettier/prettier
+  492:48  error  Replace `titlePath,·td.name,·entry.name,·mangaLinks` with `⏎··············titlePath,⏎··············td.name,⏎··············entry.name,⏎··············mangaLinks,⏎············`                                                                 prettier/prettier
+  500:46  error  Replace `titlePath,·entry.name,·undefined,·mangaLinks` with `⏎············titlePath,⏎············entry.name,⏎············undefined,⏎············mangaLinks,⏎··········`                                                                       prettier/prettier
+
+/app/src/server/session.server.ts
+  25:25  error  React Hook "useSession" is called in function "startSession" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"   react-hooks/rules-of-hooks
+  30:25  error  React Hook "useSession" is called in function "endSession" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"     react-hooks/rules-of-hooks
+  36:27  error  React Hook "useSession" is called in function "currentUserId" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"  react-hooks/rules-of-hooks
+
+/app/src/server/stream-handler.server.ts
+    4:9   error  Replace `·findAnimeBySlug,·findMangaBySlug,·getMangaPageBuffer,·getMimeType·` with `⏎··findAnimeBySlug,⏎··findMangaBySlug,⏎··getMangaPageBuffer,⏎··getMimeType,⏎`  prettier/prettier
+    6:48  error  Replace `request:·Request` with `⏎··request:·Request,⏎`                                                                                                            prettier/prettier
+   29:36  error  Replace `(e)·=>·e.file·===·file·||·e.relativePath·===·file` with `⏎··········(e)·=>·e.file·===·file·||·e.relativePath·===·file,⏎········`                          prettier/prettier
+  112:30  error  Replace `·?·"text/vtt;·charset=utf-8"` with `⏎··········?·"text/vtt;·charset=utf-8"⏎·········`                                                                     prettier/prettier
+  155:18  error  Insert `⏎·····`                                                                                                                                                    prettier/prettier
+
+✖ 177 problems (164 errors, 13 warnings)
+  146 errors and 0 warnings potentially fixable with the `--fix` option.
+
+ ELIFECYCLE  Command failed with exit code 1.

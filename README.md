@@ -7,6 +7,7 @@ A comprehensive, full-stack anime and manga management dashboard with local medi
 ## Features
 
 ### Local Media Library & Streaming
+
 - **Anime Library Scanner** - Automatically scans local directories for anime folders, detecting seasons, specials, and video episodes (`.mp4`, `.mkv`, `.webm`) with natural numerical sorting.
 - **Manga Library Scanner** - Detects manga titles, folders, and chapter archives (`.cbz`, `.cbr`, `.zip`, and raw image folders) with zero manual indexing needed.
 - **Embedded Video Player** - Custom video player supporting playback speed adjustment (0.5x–2x), subtitle track selection (`.vtt`, `.srt`), 10-second skip gestures, fullscreen toggle, and automatic timestamp progress saving.
@@ -14,6 +15,7 @@ A comprehensive, full-stack anime and manga management dashboard with local medi
 - **Local Media Linking & Unlinked Management** - Automatic title slug matching to AniList entries. Unlinked disk titles appear in the Downloaded section with quick-play and manual search-to-link capabilities.
 
 ### Online Tracking & Community
+
 - **AniList & MAL Integration** - Automatic metadata querying via the AniList GraphQL API, with full import/export support for AniList sync, MyAnimeList (MAL CSV), and local JSON backups.
 - **Custom Tagging & Search** - Tag series with custom keywords (`#fav`, `#must-watch`, `#comfort`). Filter library entries instantly by title names, genres, studios, custom lists, or tag pills.
 - **Airing Schedule Radar** - Real-time countdowns for upcoming weekly episodes with urgent countdown indicators and browser notification support.
@@ -35,10 +37,12 @@ A comprehensive, full-stack anime and manga management dashboard with local medi
 ## Getting Started
 
 ### 1. Prerequisites
+
 - Node.js v20+ or v22+
 - `pnpm` (preferred package manager)
 
 ### 2. Installation
+
 ```bash
 # Clone the repository
 git clone https://github.com/editinghero/koka.git
@@ -49,10 +53,12 @@ pnpm install
 ```
 
 ### 3. Running Locally
+
 ```bash
 # Start development server on port 3399
 pnpm dev
 ```
+
 Open your browser at `http://localhost:3399`.
 
 ---
@@ -60,6 +66,7 @@ Open your browser at `http://localhost:3399`.
 ## Local Folder Organization
 
 ### Anime Folder Layout
+
 ```text
 Anime/
   └── Frieren Beyond Journeys End/
@@ -71,6 +78,7 @@ Anime/
 ```
 
 ### Manga Folder Layout
+
 ```text
 Manga/
   └── Chainsaw Man/

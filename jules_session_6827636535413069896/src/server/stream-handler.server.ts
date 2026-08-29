@@ -1,5 +1,5 @@
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
-import { extname, join, resolve, sep } from "node:path";
+import { extname, join } from "node:path";
 import { Readable } from "node:stream";
 import {
   findAnimeBySlug,
@@ -8,14 +8,6 @@ import {
   getMimeType,
 } from "./media.server";
 
-function isSafePath(base: string, target: string): boolean {
-  const resolvedBase = resolve(base);
-  const resolvedTarget = resolve(target);
-  return (
-    resolvedTarget === resolvedBase ||
-    resolvedTarget.startsWith(resolvedBase + sep)
-  );
-}
 export async function handleMediaStreamRequest(
   request: Request,
 ): Promise<Response | null> {
@@ -46,9 +38,6 @@ export async function handleMediaStreamRequest(
         );
         if (ep) {
           targetPath = join(anime.folderPath, ep.relativePath);
-          if (!isSafePath(anime.folderPath, targetPath)) {
-            return new Response("Forbidden path", { status: 403 });
-          }
           break;
         }
       }
@@ -57,9 +46,6 @@ export async function handleMediaStreamRequest(
     if (!targetPath || !existsSync(targetPath)) {
       // Fallback: direct check in folder
       const direct = join(anime.folderPath, file);
-      if (!isSafePath(anime.folderPath, direct)) {
-        return new Response("Forbidden path", { status: 403 });
-      }
       if (existsSync(direct)) {
         targetPath = direct;
       } else {
@@ -122,9 +108,6 @@ export async function handleMediaStreamRequest(
     }
 
     const subPath = join(anime.folderPath, file);
-    if (!isSafePath(anime.folderPath, subPath)) {
-      return new Response("Forbidden path", { status: 403 });
-    }
     if (!existsSync(subPath)) {
       return new Response("Subtitle file not found", { status: 404 });
     }

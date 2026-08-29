@@ -284,47 +284,31 @@ function LibraryPage() {
     chapterFile: string;
   } | null>(null);
 
-  // Cache downloaded scan sets for O(1) checks in filtering
-  const scanMediaIds = useMemo(() => {
-    if (!scanState) return new Set<number>();
-    const items = mode === "MANGA" ? scanState.manga : scanState.anime;
-    return new Set(
-      items
-        .map((m) => m.mediaId)
-        .filter((id): id is number => id !== undefined),
-    );
-  }, [scanState, mode]);
-
-  const scanSlugs = useMemo(() => {
-    if (!scanState) return new Set<string>();
-    const items = mode === "MANGA" ? scanState.manga : scanState.anime;
-    return new Set(items.map((m) => m.slug).filter(Boolean));
-  }, [scanState, mode]);
-
   // Local media check helper
-  const isMediaDownloaded = useCallback(
-    (mediaId: number, title: string) => {
-      if (!scanState) return false;
-      const slug = toSlug(title);
-      return scanMediaIds.has(mediaId) || scanSlugs.has(slug);
-    },
-    [scanState, scanMediaIds, scanSlugs],
-  );
+  const isMediaDownloaded = (mediaId: number, title: string) => {
+    if (!scanState) return false;
+    const slug = toSlug(title);
+    if (mode === "MANGA") {
+      return (
+        scanState.manga.some((m) => m.mediaId === mediaId) ||
+        scanState.manga.some((m) => m.slug === slug)
+      );
+    }
+    return (
+      scanState.anime.some((a) => a.mediaId === mediaId) ||
+      scanState.anime.some((a) => a.slug === slug)
+    );
+  };
 
   // Compute unlinked folders on disk
   const unlinkedFolders = useMemo(() => {
     if (!scanState) return [];
     const items = mode === "MANGA" ? scanState.manga : scanState.anime;
-
-    // Create sets for O(1) lookups against library items
-    const libraryIds = new Set(library.map((e) => e.media.id));
-    const librarySlugs = new Set(library.map((e) => toSlug(e.media.title)));
-
     return items.filter((item) => {
-      if (item.mediaId && libraryIds.has(item.mediaId)) {
+      if (item.mediaId && library.some((e) => e.media.id === item.mediaId)) {
         return false;
       }
-      if (librarySlugs.has(item.slug)) {
+      if (library.some((e) => toSlug(e.media.title) === item.slug)) {
         return false;
       }
       return true;

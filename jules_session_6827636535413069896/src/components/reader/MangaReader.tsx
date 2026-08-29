@@ -901,7 +901,7 @@ export function MangaReader({
                     className="fixed inset-0 z-[125]"
                     onClick={() => setShowMobileModeMenu(false)}
                   />
-                  <div className="fixed inset-x-6 top-16 z-[130] mx-auto w-48 border border-border bg-popover/90 backdrop-blur-3xl rounded-2xl shadow-2xl p-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="fixed inset-x-6 top-16 z-[130] mx-auto w-48 border border-border bg-popover rounded-2xl shadow-2xl p-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-150">
                     <button
                       onClick={() => {
                         handleModeSwitch("webtoon");
@@ -1044,7 +1044,7 @@ export function MangaReader({
                         className="fixed inset-0 z-[125]"
                         onClick={() => setShowSpeedMenu(false)}
                       />
-                      <div className="fixed inset-x-4 top-16 z-[130] mx-auto w-auto max-w-xs border border-border bg-popover/90 backdrop-blur-3xl rounded-2xl shadow-2xl p-4 sm:absolute sm:inset-auto sm:right-0 sm:top-10 sm:w-56 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="fixed inset-x-4 top-16 z-[130] mx-auto w-auto max-w-xs border border-border bg-popover rounded-2xl shadow-2xl p-4 sm:absolute sm:inset-auto sm:right-0 sm:top-10 sm:w-56 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-150">
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-semibold text-muted-foreground uppercase text-[10px]">
                             Scroll Speed
@@ -1115,7 +1115,7 @@ export function MangaReader({
                     className="fixed inset-0 z-[125]"
                     onClick={() => setShowMoreMenu(false)}
                   />
-                  <div className="fixed inset-x-4 top-16 z-[130] mx-auto w-auto max-w-sm max-h-[80vh] overflow-y-auto border border-border bg-popover/90 backdrop-blur-3xl rounded-2xl shadow-2xl p-4 sm:absolute sm:inset-auto sm:right-0 sm:top-10 sm:w-80 flex flex-col gap-3.5 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="fixed inset-x-4 top-16 z-[130] mx-auto w-auto max-w-sm max-h-[80vh] overflow-y-auto border border-border bg-popover rounded-2xl shadow-2xl p-4 sm:absolute sm:inset-auto sm:right-0 sm:top-10 sm:w-80 flex flex-col gap-3.5 animate-in fade-in zoom-in-95 duration-150">
                     <div className="flex items-center justify-between border-b border-border/80 pb-2">
                       <span className="text-xs font-bold text-foreground">
                         Reading & Display Settings
@@ -1428,7 +1428,7 @@ export function MangaReader({
 
       {/* Chapter Drawer with Multiline Word Wrapping */}
       {showChapterMenu && (
-        <div className="fixed right-4 top-16 bottom-20 w-80 max-w-[calc(100vw-2rem)] border border-border bg-popover/90 backdrop-blur-3xl rounded-2xl shadow-2xl p-4 overflow-y-auto z-[130] flex flex-col gap-3 animate-in slide-in-from-right-4 duration-200">
+        <div className="fixed right-4 top-16 bottom-20 w-80 max-w-[calc(100vw-2rem)] border border-border bg-popover rounded-2xl shadow-2xl p-4 overflow-y-auto z-[130] flex flex-col gap-3 animate-in slide-in-from-right-4 duration-200">
           <div className="flex items-center justify-between border-b border-border/80 pb-2">
             <h3 className="font-display font-semibold text-sm whitespace-normal break-words leading-snug flex-1 pr-2">
               {title || "Chapters"}
