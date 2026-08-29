@@ -363,8 +363,8 @@ export function NotificationsDropdown() {
           />
 
           {/* Centered responsive popup on mobile, right-aligned dropdown on desktop */}
-          <div className="fixed inset-x-4 top-16 z-50 mx-auto w-auto max-w-sm rounded-2xl border border-border bg-popover p-4 shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-w-none">
-            <div className="flex items-center justify-between pb-3 border-b border-border">
+          <div className="fixed inset-x-4 top-16 z-50 mx-auto w-auto max-w-sm rounded-2xl border border-border/80 glass-popover p-4 shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-w-none">
+            <div className="flex items-center justify-between pb-3 border-b border-border/80">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-primary" />
                 <h3 className="font-display text-sm font-semibold">
@@ -431,8 +431,8 @@ export function NotificationsDropdown() {
                   className={cn(
                     "rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors",
                     filterTab === tab
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary/60 text-muted-foreground hover:text-foreground",
+                      ? "bg-primary text-primary-foreground font-semibold"
+                      : "bg-secondary/50 text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {label}
@@ -452,10 +452,10 @@ export function NotificationsDropdown() {
                       className={cn(
                         "group relative flex cursor-pointer gap-3 rounded-xl border p-2.5 transition-all duration-200 hover:border-primary/40",
                         isRead
-                          ? "border-border/60 bg-secondary/20 opacity-60"
+                          ? "border-border/40 bg-secondary/30 opacity-60"
                           : item.isWithin3Hours
-                            ? "border-primary/50 bg-primary/5"
-                            : "border-border bg-card",
+                            ? "border-primary/50 bg-primary/10"
+                            : "border-border/60 bg-card/60",
                       )}
                     >
                       <img
