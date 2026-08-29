@@ -9,6 +9,7 @@ import http from "node:http";
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 // Load configuration from config.json or environment variables
@@ -393,6 +394,206 @@ function findVideoFilePath(baseDir, slug, season, file) {
       fs.createReadStream(targetPath).pipe(res);
     }
     return;
+  }
+
+function parseZipEntries(buffer) {
+  const entries = [];
+  let i = 0;
+  while (i < buffer.length - 30) {
+    if (buffer.readUInt32LE(i) === 0x04034b50) {
+      const compMethod = buffer.readUInt16LE(i + 8);
+      const compSize = buffer.readUInt32LE(i + 18);
+      const uncompSize = buffer.readUInt32LE(i + 22);
+      const nameLen = buffer.readUInt16LE(i + 26);
+      const extraLen = buffer.readUInt16LE(i + 28);
+      const filename = buffer.toString("utf-8", i + 30, i + 30 + nameLen);
+      const dataOffset = i + 30 + nameLen + extraLen;
+
+      if (!filename.endsWith("/") && /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(filename)) {
+        entries.push({
+          name: filename,
+          compMethod,
+          compSize,
+          uncompSize,
+          dataOffset,
+        });
+      }
+      i = dataOffset + compSize;
+    } else {
+      i++;
+    }
+  }
+  entries.sort((a, b) => naturalSort(a.name, b.name));
+  return entries;
+}
+
+function extractZipEntry(buffer, entry) {
+  const compressed = buffer.subarray(entry.dataOffset, entry.dataOffset + entry.compSize);
+  if (entry.compMethod === 0) {
+    return compressed;
+  }
+  if (entry.compMethod === 8) {
+    return zlib.inflateRawSync(compressed);
+  }
+  throw new Error(`Unsupported compression method: ${entry.compMethod}`);
+}
+
+function findMangaPath(baseDir, slug, chapter) {
+  if (!baseDir || !fs.existsSync(baseDir)) return null;
+
+  // 1. Direct path check
+  const directPath = path.join(baseDir, slug, chapter || "");
+  if (fs.existsSync(directPath)) return directPath;
+
+  // 2. Direct root archive check
+  const inRoot = path.join(baseDir, chapter || slug);
+  if (fs.existsSync(inRoot)) return inRoot;
+
+  // 3. Scan directory to match manga folder
+  try {
+    const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+    const targetFolder = entries.find((e) => (
+      e.name === slug ||
+      e.name.toLowerCase() === slug.toLowerCase() ||
+      e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug.toLowerCase()
+    ));
+
+    if (targetFolder) {
+      const folderPath = path.join(baseDir, targetFolder.name);
+      if (!chapter) return folderPath;
+
+      const inChapter = path.join(folderPath, chapter);
+      if (fs.existsSync(inChapter)) return inChapter;
+
+      const subEntries = fs.readdirSync(folderPath, { withFileTypes: true });
+      const subMatch = subEntries.find((s) => (
+        s.name === chapter ||
+        s.name.toLowerCase() === chapter.toLowerCase() ||
+        s.name.replace(/\.[^/.]+$/, "").toLowerCase() === chapter.replace(/\.[^/.]+$/, "").toLowerCase()
+      ));
+      if (subMatch) return path.join(folderPath, subMatch.name);
+    }
+  } catch (err) {
+    console.warn("Manga path search error:", err.message);
+  }
+
+  return null;
+}
+
+  // 5. Manga Chapter Pages List Endpoint
+  if (pathname === "/api/manga/pages") {
+    const slug = parsedUrl.searchParams.get("slug");
+    const chapter = parsedUrl.searchParams.get("chapter");
+
+    if (!slug) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Missing slug parameter" }));
+      return;
+    }
+
+    const targetPath = findMangaPath(MANGA_PATH, slug, chapter);
+    if (!targetPath || !fs.existsSync(targetPath)) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Manga chapter not found" }));
+      return;
+    }
+
+    try {
+      const stat = fs.statSync(targetPath);
+      if (stat.isFile() && /\.(cbz|zip)$/i.test(targetPath)) {
+        const buffer = fs.readFileSync(targetPath);
+        const entries = parseZipEntries(buffer);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          pageCount: entries.length,
+          pages: entries.map((e, idx) => ({ index: idx, name: path.basename(e.name) })),
+        }));
+        return;
+      } else if (stat.isDirectory()) {
+        const subFiles = fs.readdirSync(targetPath, { withFileTypes: true });
+        const imageFiles = subFiles
+          .filter((f) => f.isFile() && /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(f.name))
+          .map((f) => f.name)
+          .sort(naturalSort);
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          pageCount: imageFiles.length,
+          pages: imageFiles.map((name, idx) => ({ index: idx, name })),
+        }));
+        return;
+      }
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: err.message }));
+      return;
+    }
+  }
+
+  // 6. Manga Page Image Stream Endpoint
+  if (pathname === "/api/stream/manga-page") {
+    const slug = parsedUrl.searchParams.get("slug");
+    const chapter = parsedUrl.searchParams.get("chapter");
+    const pageStr = parsedUrl.searchParams.get("page");
+    const pageIndex = parseInt(pageStr || "0", 10);
+
+    if (!slug) {
+      res.writeHead(400, { "Content-Type": "text/plain" });
+      res.end("Missing slug");
+      return;
+    }
+
+    const targetPath = findMangaPath(MANGA_PATH, slug, chapter);
+    if (!targetPath || !fs.existsSync(targetPath)) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Chapter not found");
+      return;
+    }
+
+    try {
+      const stat = fs.statSync(targetPath);
+      if (stat.isFile() && /\.(cbz|zip)$/i.test(targetPath)) {
+        const buffer = fs.readFileSync(targetPath);
+        const entries = parseZipEntries(buffer);
+        if (pageIndex < 0 || pageIndex >= entries.length) {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.end("Page not found");
+          return;
+        }
+        const imgBuffer = extractZipEntry(buffer, entries[pageIndex]);
+        const ext = path.extname(entries[pageIndex].name).toLowerCase();
+        res.writeHead(200, {
+          "Content-Type": MIME_TYPES[ext] || "image/jpeg",
+          "Cache-Control": "public, max-age=86400",
+        });
+        res.end(imgBuffer);
+        return;
+      } else if (stat.isDirectory()) {
+        const subFiles = fs.readdirSync(targetPath, { withFileTypes: true });
+        const imageFiles = subFiles
+          .filter((f) => f.isFile() && /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(f.name))
+          .map((f) => f.name)
+          .sort(naturalSort);
+
+        if (pageIndex < 0 || pageIndex >= imageFiles.length) {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.end("Page not found");
+          return;
+        }
+        const imgPath = path.join(targetPath, imageFiles[pageIndex]);
+        const ext = path.extname(imgPath).toLowerCase();
+        res.writeHead(200, {
+          "Content-Type": MIME_TYPES[ext] || "image/jpeg",
+          "Cache-Control": "public, max-age=86400",
+        });
+        fs.createReadStream(imgPath).pipe(res);
+        return;
+      }
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end(err.message);
+      return;
+    }
   }
 
   res.writeHead(404, { "Content-Type": "text/plain" });

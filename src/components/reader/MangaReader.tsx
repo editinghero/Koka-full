@@ -21,10 +21,9 @@ import {
   Gauge,
 } from "lucide-react";
 import {
-  getMangaChapterPagesInfo,
   saveReadProgress,
 } from "@/lib/media.functions";
-import { buildStreamUrl } from "@/lib/tunnel-client";
+import { buildStreamUrl, fetchMangaChapterPages } from "@/lib/tunnel-client";
 import type { MangaChapter } from "@/server/scanner.server";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -400,7 +399,7 @@ export function MangaReader({
     let active = true;
     setIsLoading(true);
 
-    getMangaChapterPagesInfo({ data: { slug, chapterFile } })
+    fetchMangaChapterPages(slug, chapterFile)
       .then((info) => {
         if (!active) return;
         setTotalPages(info.pageCount || 1);

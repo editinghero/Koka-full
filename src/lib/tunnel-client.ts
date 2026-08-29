@@ -258,3 +258,39 @@ export function buildStreamUrl(
   const queryString = query.toString();
   return `${base}${path}${queryString ? `?${queryString}` : ""}`;
 }
+
+export async function fetchMangaChapterPages(
+  slug: string,
+  chapterFile: string,
+): Promise<{ pageCount: number; pages: { index: number; name: string }[] }> {
+  const tunnel = getStoredTunnelUrl();
+  const secret = getStoredTunnelSecret();
+
+  if (tunnel) {
+    const cleanUrl = tunnel.replace(/\/+$/, "");
+    const query = new URLSearchParams({
+      slug,
+      chapter: chapterFile,
+    });
+    if (secret) query.set("secret", secret);
+
+    try {
+      const res = await fetch(`${cleanUrl}/api/manga/pages?${query.toString()}`);
+      if (res.ok) {
+        const data = (await res.json()) as {
+          pageCount: number;
+          pages: { index: number; name: string }[];
+        };
+        if (data && data.pageCount !== undefined) {
+          return data;
+        }
+      }
+    } catch (err) {
+      console.warn("Remote streamer manga page fetch error:", err);
+    }
+  }
+
+  // Fallback to server function
+  const { getMangaChapterPagesInfo } = await import("./media.functions");
+  return await getMangaChapterPagesInfo({ data: { slug, chapterFile } });
+}
