@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import { extname, join, parse, resolve } from "node:path";
 import AdmZip from "adm-zip";
-import { getScanState, naturalSort } from "./scanner.server";
+import { getScanState, naturalSort, naturalSortPages } from "./scanner.server";
 import { isSafePath } from "./path-guard.server";
 
 const IMAGE_EXTENSIONS = new Set([
@@ -17,6 +17,12 @@ const IMAGE_EXTENSIONS = new Set([
   ".webp",
   ".avif",
   ".gif",
+  ".bmp",
+  ".tiff",
+  ".tif",
+  ".jxl",
+  ".heic",
+  ".heif",
 ]);
 
 const MIME_MAP: Record<string, string> = {
@@ -37,6 +43,12 @@ const MIME_MAP: Record<string, string> = {
   ".webp": "image/webp",
   ".avif": "image/avif",
   ".gif": "image/gif",
+  ".bmp": "image/bmp",
+  ".tiff": "image/tiff",
+  ".tif": "image/tiff",
+  ".jxl": "image/jxl",
+  ".heic": "image/heic",
+  ".heif": "image/heif",
 };
 
 export interface MangaChapterPageInfo {
@@ -91,7 +103,7 @@ export async function getMangaChapterPages(
           f.isFile() && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
       )
       .map((f) => f.name)
-      .sort(naturalSort);
+      .sort(naturalSortPages);
 
     return {
       pageCount: imageFiles.length,
@@ -108,7 +120,7 @@ export async function getMangaChapterPages(
           !e.isDirectory &&
           IMAGE_EXTENSIONS.has(extname(e.entryName).toLowerCase()),
       )
-      .sort((a, b) => naturalSort(a.entryName, b.entryName));
+      .sort((a, b) => naturalSortPages(a.entryName, b.entryName));
 
     return {
       pageCount: entries.length,
@@ -132,7 +144,7 @@ export async function getMangaChapterPages(
             !f.flags.directory &&
             IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
         )
-        .sort((a, b) => naturalSort(a.name, b.name));
+        .sort((a, b) => naturalSortPages(a.name, b.name));
 
       return {
         pageCount: files.length,

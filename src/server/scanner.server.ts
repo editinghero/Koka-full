@@ -82,6 +82,12 @@ const IMAGE_EXTENSIONS = new Set([
   ".webp",
   ".avif",
   ".gif",
+  ".bmp",
+  ".tiff",
+  ".tif",
+  ".jxl",
+  ".heic",
+  ".heif",
 ]);
 const ARCHIVE_EXTENSIONS = new Set([".cbz", ".zip", ".cbr", ".rar"]);
 
@@ -115,6 +121,26 @@ function toSlug(name: string): string {
     .replace(/[^\w\s-]/g, "")
     .replace(/[\s_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+export function extractPageNumber(filename: string): number | null {
+  const base = parse(filename).name;
+  const matches = base.match(/(\d+(?:\.\d+)?)/g);
+  if (matches && matches.length > 0) {
+    const num = parseFloat(matches[matches.length - 1]!);
+    if (!isNaN(num)) return num;
+  }
+  return null;
+}
+
+export function naturalSortPages(a: string, b: string): number {
+  const numA = extractPageNumber(a);
+  const numB = extractPageNumber(b);
+
+  if (numA !== null && numB !== null && numA !== numB) {
+    return numA - numB;
+  }
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 }
 
 export function naturalSort(a: string, b: string): number {

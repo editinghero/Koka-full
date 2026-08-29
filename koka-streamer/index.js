@@ -49,8 +49,17 @@ const MIME_TYPES = {
   ".jpeg": "image/jpeg",
   ".png": "image/png",
   ".webp": "image/webp",
+  ".avif": "image/avif",
   ".gif": "image/gif",
+  ".bmp": "image/bmp",
+  ".tiff": "image/tiff",
+  ".tif": "image/tiff",
+  ".jxl": "image/jxl",
+  ".heic": "image/heic",
+  ".heif": "image/heif",
 };
+
+const IMAGE_EXTENSIONS_REGEX = /\.(jpe?g|png|webp|avif|gif|bmp|tiff?|jxl|heic|heif)$/i;
 
 function isSafePath(base, target) {
   if (!base || !target) return false;
@@ -59,8 +68,33 @@ function isSafePath(base, target) {
   return resolvedTarget === resolvedBase || resolvedTarget.startsWith(resolvedBase + path.sep);
 }
 
+function extractPageNumber(filename) {
+  const base = path.basename(filename).replace(/\.[^/.]+$/, "");
+  const matches = base.match(/(\d+(?:\.\d+)?)/g);
+  if (matches && matches.length > 0) {
+    const num = parseFloat(matches[matches.length - 1]);
+    if (!isNaN(num)) return num;
+  }
+  return null;
+}
+
+function naturalSortPages(a, b) {
+  const strA = typeof a === "string" ? a : (a?.name || a?.file || "");
+  const strB = typeof b === "string" ? b : (b?.name || b?.file || "");
+
+  const numA = extractPageNumber(strA);
+  const numB = extractPageNumber(strB);
+
+  if (numA !== null && numB !== null && numA !== numB) {
+    return numA - numB;
+  }
+  return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: "base" });
+}
+
 function naturalSort(a, b) {
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+  const strA = typeof a === "string" ? a : (a?.name || a?.file || "");
+  const strB = typeof b === "string" ? b : (b?.name || b?.file || "");
+  return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: "base" });
 }
 
 const initialConfig = getFreshConfig();
@@ -409,7 +443,7 @@ function parseZipEntries(buffer) {
       const filename = buffer.toString("utf-8", i + 30, i + 30 + nameLen);
       const dataOffset = i + 30 + nameLen + extraLen;
 
-      if (!filename.endsWith("/") && /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(filename)) {
+      if (!filename.endsWith("/") && !filename.startsWith("__MACOSX") && IMAGE_EXTENSIONS_REGEX.test(filename)) {
         entries.push({
           name: filename,
           compMethod,
@@ -423,7 +457,7 @@ function parseZipEntries(buffer) {
       i++;
     }
   }
-  entries.sort((a, b) => naturalSort(a.name, b.name));
+  entries.sort((a, b) => naturalSortPages(a.name, b.name));
   return entries;
 }
 
@@ -512,9 +546,9 @@ function findMangaPath(baseDir, slug, chapter) {
       } else if (stat.isDirectory()) {
         const subFiles = fs.readdirSync(targetPath, { withFileTypes: true });
         const imageFiles = subFiles
-          .filter((f) => f.isFile() && /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(f.name))
+          .filter((f) => f.isFile() && IMAGE_EXTENSIONS_REGEX.test(f.name))
           .map((f) => f.name)
-          .sort(naturalSort);
+          .sort(naturalSortPages);
 
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
@@ -571,9 +605,9 @@ function findMangaPath(baseDir, slug, chapter) {
       } else if (stat.isDirectory()) {
         const subFiles = fs.readdirSync(targetPath, { withFileTypes: true });
         const imageFiles = subFiles
-          .filter((f) => f.isFile() && /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(f.name))
+          .filter((f) => f.isFile() && IMAGE_EXTENSIONS_REGEX.test(f.name))
           .map((f) => f.name)
-          .sort(naturalSort);
+          .sort(naturalSortPages);
 
         if (pageIndex < 0 || pageIndex >= imageFiles.length) {
           res.writeHead(404, { "Content-Type": "text/plain" });
