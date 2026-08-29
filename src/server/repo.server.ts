@@ -711,6 +711,12 @@ function d1Repo(d1: D1Database): Repo {
 }
 
 export function getD1Database(): D1Database | null {
+  try {
+    const fromRuntime = (globalThis as unknown as { __getD1?: () => D1Database | null }).__getD1?.();
+    if (fromRuntime) return fromRuntime;
+  } catch {
+    /* ignore */
+  }
   const g = globalThis as unknown as {
     __D1_DB__?: D1Database;
     __CF_ENV__?: { DB?: D1Database };

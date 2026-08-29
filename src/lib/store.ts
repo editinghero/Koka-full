@@ -100,6 +100,12 @@ export function applyThemeFromSettings(settingsOverride?: Settings) {
     const root = document.documentElement;
     root.classList.toggle("dark", dark);
     root.dataset["theme"] = preset;
+    try {
+      window.localStorage.setItem("koka:theme:mode", settings.theme);
+      window.localStorage.setItem("koka:theme:preset", preset);
+    } catch {
+      /* ignore */
+    }
   } catch {
     /* ignore */
   }
@@ -113,6 +119,7 @@ function hydrateFromCache() {
     const raw = window.localStorage.getItem(CACHE_KEY);
     if (!raw) {
       state = { ...state, ready: true };
+      applyThemeFromSettings(state.settings);
       return;
     }
     const parsed = JSON.parse(raw) as Partial<State>;
@@ -128,7 +135,7 @@ function hydrateFromCache() {
     applyThemeFromSettings(state.settings);
   } catch {
     state = { ...state, ready: true };
-    /* corrupt cache — ignore */
+    applyThemeFromSettings(state.settings);
   }
 }
 
@@ -137,7 +144,11 @@ if (typeof window !== "undefined") {
 }
 
 export function clearCache() {
-  if (typeof window !== "undefined") window.localStorage.removeItem(CACHE_KEY);
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(CACHE_KEY);
+    window.localStorage.removeItem("koka:theme:mode");
+    window.localStorage.removeItem("koka:theme:preset");
+  }
   state = {
     ready: true,
     user: null,
@@ -162,14 +173,19 @@ export function boot(force = false): Promise<void> {
         setState({ ready: true, user: null }, false);
         return;
       }
+      const resolvedSettings = {
+        ...DEFAULT_SETTINGS,
+        ...(data.settings ?? {}),
+      };
       setState({
         ready: true,
         user: data.user,
-        settings: { ...DEFAULT_SETTINGS, ...(data.settings ?? {}) },
+        settings: resolvedSettings,
         mode: data.mode,
         library: data.library,
         notes: data.notes,
       });
+      applyThemeFromSettings(resolvedSettings);
     })
     .catch(() => setState({ ready: true }, false));
   return bootPromise;

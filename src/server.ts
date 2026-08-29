@@ -58,6 +58,9 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const { setCloudflareEnv } = await import("./server/runtime.server");
+      setCloudflareEnv(env);
+
       const { handleMediaStreamRequest } =
         await import("./server/stream-handler.server");
       const mediaResponse = await handleMediaStreamRequest(request);
