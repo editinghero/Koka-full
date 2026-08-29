@@ -432,31 +432,79 @@ function findVideoFilePath(baseDir, slug, season, file) {
 
 function parseZipEntries(buffer) {
   const entries = [];
-  let i = 0;
-  while (i < buffer.length - 30) {
-    if (buffer.readUInt32LE(i) === 0x04034b50) {
-      const compMethod = buffer.readUInt16LE(i + 8);
-      const compSize = buffer.readUInt32LE(i + 18);
-      const uncompSize = buffer.readUInt32LE(i + 22);
-      const nameLen = buffer.readUInt16LE(i + 26);
-      const extraLen = buffer.readUInt16LE(i + 28);
-      const filename = buffer.toString("utf-8", i + 30, i + 30 + nameLen);
-      const dataOffset = i + 30 + nameLen + extraLen;
 
-      if (!filename.endsWith("/") && !filename.startsWith("__MACOSX") && IMAGE_EXTENSIONS_REGEX.test(filename)) {
-        entries.push({
-          name: filename,
-          compMethod,
-          compSize,
-          uncompSize,
-          dataOffset,
-        });
-      }
-      i = dataOffset + compSize;
-    } else {
-      i++;
+  // Find End of Central Directory record (0x06054b50) searching backwards
+  let eocdOffset = -1;
+  for (let i = buffer.length - 22; i >= 0; i--) {
+    if (buffer.readUInt32LE(i) === 0x06054b50) {
+      eocdOffset = i;
+      break;
     }
   }
+
+  if (eocdOffset !== -1) {
+    const totalEntries = buffer.readUInt16LE(eocdOffset + 10);
+    const cdOffset = buffer.readUInt32LE(eocdOffset + 16);
+    let p = cdOffset;
+
+    for (let k = 0; k < totalEntries && p < eocdOffset; k++) {
+      if (p + 46 > buffer.length || buffer.readUInt32LE(p) !== 0x02014b50) break;
+      const compMethod = buffer.readUInt16LE(p + 10);
+      const compSize = buffer.readUInt32LE(p + 20);
+      const uncompSize = buffer.readUInt32LE(p + 24);
+      const nameLen = buffer.readUInt16LE(p + 28);
+      const extraLen = buffer.readUInt16LE(p + 30);
+      const commentLen = buffer.readUInt16LE(p + 32);
+      const localOffset = buffer.readUInt32LE(p + 42);
+      const filename = buffer.toString("utf-8", p + 46, p + 46 + nameLen);
+
+      if (!filename.endsWith("/") && !filename.startsWith("__MACOSX") && IMAGE_EXTENSIONS_REGEX.test(filename)) {
+        if (localOffset + 30 <= buffer.length && buffer.readUInt32LE(localOffset) === 0x04034b50) {
+          const locNameLen = buffer.readUInt16LE(localOffset + 26);
+          const locExtraLen = buffer.readUInt16LE(localOffset + 28);
+          const dataOffset = localOffset + 30 + locNameLen + locExtraLen;
+          entries.push({
+            name: filename,
+            compMethod,
+            compSize,
+            uncompSize,
+            dataOffset,
+          });
+        }
+      }
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+  }
+
+  // Fallback: scan local headers if central directory was empty
+  if (entries.length === 0) {
+    let i = 0;
+    while (i < buffer.length - 30) {
+      if (buffer.readUInt32LE(i) === 0x04034b50) {
+        const compMethod = buffer.readUInt16LE(i + 8);
+        const compSize = buffer.readUInt32LE(i + 18);
+        const uncompSize = buffer.readUInt32LE(i + 22);
+        const nameLen = buffer.readUInt16LE(i + 26);
+        const extraLen = buffer.readUInt16LE(i + 28);
+        const filename = buffer.toString("utf-8", i + 30, i + 30 + nameLen);
+        const dataOffset = i + 30 + nameLen + extraLen;
+
+        if (!filename.endsWith("/") && !filename.startsWith("__MACOSX") && IMAGE_EXTENSIONS_REGEX.test(filename)) {
+          entries.push({
+            name: filename,
+            compMethod,
+            compSize,
+            uncompSize,
+            dataOffset,
+          });
+        }
+        i = compSize > 0 ? dataOffset + compSize : i + 1;
+      } else {
+        i++;
+      }
+    }
+  }
+
   entries.sort((a, b) => naturalSortPages(a.name, b.name));
   return entries;
 }
