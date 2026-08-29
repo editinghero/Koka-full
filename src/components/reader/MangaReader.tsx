@@ -291,12 +291,60 @@ export function MangaReader({
     }
   };
 
-  // Sync scroll accumulator on manual user scrolling while auto-scroll is running
+  // Sync scroll accumulator and save webtoon reading position
   const handleScroll = () => {
     if (scrollContainerRef.current) {
       scrollAccumulatorRef.current = scrollContainerRef.current.scrollTop;
+      if (
+        mode === "webtoon" &&
+        slug &&
+        chapterFile &&
+        scrollContainerRef.current.scrollHeight > 0
+      ) {
+        const pct =
+          scrollContainerRef.current.scrollTop /
+          scrollContainerRef.current.scrollHeight;
+        try {
+          localStorage.setItem(
+            `koka:manga:scroll:${slug}:${chapterFile}`,
+            pct.toString(),
+          );
+        } catch {
+          /* ignore */
+        }
+      }
     }
   };
+
+  // Restore Webtoon reading progress on load
+  useEffect(() => {
+    if (
+      mode === "webtoon" &&
+      !isLoading &&
+      pagesList.length > 0 &&
+      slug &&
+      chapterFile
+    ) {
+      try {
+        const saved = localStorage.getItem(
+          `koka:manga:scroll:${slug}:${chapterFile}`,
+        );
+        if (saved && scrollContainerRef.current) {
+          const pct = parseFloat(saved);
+          if (!isNaN(pct) && pct > 0 && pct < 0.99) {
+            setTimeout(() => {
+              if (scrollContainerRef.current) {
+                scrollContainerRef.current.scrollTop =
+                  pct * scrollContainerRef.current.scrollHeight;
+              }
+            }, 80);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [slug, chapterFile, isLoading, pagesList, mode]);
 
   // Reliable continuous auto-scroll loop for Webtoon mode
   useEffect(() => {
@@ -672,16 +720,46 @@ export function MangaReader({
 
       switch (e.key) {
         case "ArrowRight":
+        case "l":
           direction === "rtl" ? prevPage() : nextPage();
           break;
         case "ArrowLeft":
+        case "h":
           direction === "rtl" ? nextPage() : prevPage();
           break;
+        case "ArrowDown":
+        case "j":
         case "PageDown":
-          nextPage();
+          if (mode === "webtoon" && scrollContainerRef.current) {
+            scrollContainerRef.current.scrollBy({
+              top: window.innerHeight * 0.75,
+              behavior: "smooth",
+            });
+          } else {
+            nextPage();
+          }
           break;
+        case "ArrowUp":
+        case "k":
         case "PageUp":
-          prevPage();
+          if (mode === "webtoon" && scrollContainerRef.current) {
+            scrollContainerRef.current.scrollBy({
+              top: -window.innerHeight * 0.75,
+              behavior: "smooth",
+            });
+          } else {
+            prevPage();
+          }
+          break;
+        case "[":
+          updatePreference({
+            autoScrollSeconds: Math.max(3, autoScrollSeconds - 2),
+          });
+          break;
+        case "]":
+          updatePreference({
+            autoScrollSeconds: Math.min(35, autoScrollSeconds + 2),
+          });
           break;
         case " ":
           if (mode === "webtoon") {
@@ -710,6 +788,7 @@ export function MangaReader({
           }
           break;
         case "f":
+        case "F":
           toggleFullscreen();
           break;
         case "Escape":

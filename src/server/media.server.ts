@@ -8,6 +8,7 @@ import {
 import { extname, join, parse, resolve } from "node:path";
 import AdmZip from "adm-zip";
 import { getScanState, naturalSort } from "./scanner.server";
+import { isSafePath } from "./path-guard.server";
 
 const IMAGE_EXTENSIONS = new Set([
   ".jpg",
@@ -78,7 +79,9 @@ export async function getMangaChapterPages(
   if (!chapter) throw new Error("Chapter not found");
 
   const chapterPath = join(manga.folderPath, chapter.relativePath);
-  if (!existsSync(chapterPath)) throw new Error("Chapter file does not exist");
+  if (!isSafePath(manga.folderPath, chapterPath) || !existsSync(chapterPath)) {
+    throw new Error("Chapter file does not exist");
+  }
 
   if (chapter.format === "folder") {
     const files = readdirSync(chapterPath, { withFileTypes: true });
@@ -162,7 +165,9 @@ export async function getMangaPageBuffer(
   if (!chapter) return null;
 
   const chapterPath = join(manga.folderPath, chapter.relativePath);
-  if (!existsSync(chapterPath)) return null;
+  if (!isSafePath(manga.folderPath, chapterPath) || !existsSync(chapterPath)) {
+    return null;
+  }
 
   if (chapter.format === "folder") {
     const files = readdirSync(chapterPath, { withFileTypes: true });

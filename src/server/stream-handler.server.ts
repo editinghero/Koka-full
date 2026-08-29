@@ -7,15 +7,7 @@ import {
   getMangaPageBuffer,
   getMimeType,
 } from "./media.server";
-
-function isSafePath(base: string, target: string): boolean {
-  const resolvedBase = resolve(base);
-  const resolvedTarget = resolve(target);
-  return (
-    resolvedTarget === resolvedBase ||
-    resolvedTarget.startsWith(resolvedBase + sep)
-  );
-}
+import { isSafePath } from "./path-guard.server";
 export async function handleMediaStreamRequest(
   request: Request,
 ): Promise<Response | null> {
