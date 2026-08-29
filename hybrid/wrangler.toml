@@ -1,9 +1,9 @@
-name = "koka"
+name = "kokaaq"
 compatibility_date = "2026-02-24"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist/client"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "koka"
-database_id = "bc716e24-d200-4ed4-b5bb-be92222747de"
+database_name = "kokaaq"
+database_id = "76a0d502-078c-42b7-a8df-ba8fe65c1b0f"
