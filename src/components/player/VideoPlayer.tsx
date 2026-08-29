@@ -15,6 +15,7 @@ import {
   Check,
 } from "lucide-react";
 import { saveWatchProgress } from "@/lib/media.functions";
+import { buildStreamUrl } from "@/lib/tunnel-client";
 import type { AnimeSeason, AnimeEpisode } from "@/server/scanner.server";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -88,7 +89,11 @@ export function VideoPlayer({
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Video stream source URL
-  const videoSrc = `/api/stream/video?slug=${encodeURIComponent(slug)}&season=${encodeURIComponent(season)}&file=${encodeURIComponent(episodeFile)}`;
+  const videoSrc = buildStreamUrl("/api/stream/video", {
+    slug,
+    season,
+    file: episodeFile,
+  });
 
   // Find current episode and its subtitles
   useEffect(() => {
@@ -366,7 +371,10 @@ export function VideoPlayer({
         {activeSubtitle && (
           <track
             key={activeSubtitle}
-            src={`/api/stream/subtitle?slug=${encodeURIComponent(slug)}&file=${encodeURIComponent(activeSubtitle)}`}
+            src={buildStreamUrl("/api/stream/subtitle", {
+              slug,
+              file: activeSubtitle,
+            })}
             kind="subtitles"
             label="Subtitles"
             default

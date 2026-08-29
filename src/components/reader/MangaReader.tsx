@@ -24,6 +24,7 @@ import {
   getMangaChapterPagesInfo,
   saveReadProgress,
 } from "@/lib/media.functions";
+import { buildStreamUrl } from "@/lib/tunnel-client";
 import type { MangaChapter } from "@/server/scanner.server";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -1602,7 +1603,11 @@ export function MangaReader({
                 className="webtoon-manga-page relative w-full flex justify-center min-h-[250px]"
               >
                 <img
-                  src={`/api/stream/manga-page?slug=${encodeURIComponent(slug)}&chapter=${encodeURIComponent(chapterFile)}&page=${p.index}`}
+                  src={buildStreamUrl("/api/stream/manga-page", {
+                    slug,
+                    chapter: chapterFile,
+                    page: p.index,
+                  })}
                   alt={`Page ${p.index + 1}`}
                   loading="lazy"
                   style={getImageFilterStyle()}
@@ -1655,7 +1660,11 @@ export function MangaReader({
             >
               {mode === "single" ? (
                 <img
-                  src={`/api/stream/manga-page?slug=${encodeURIComponent(slug)}&chapter=${encodeURIComponent(chapterFile)}&page=${currentPage - 1}`}
+                  src={buildStreamUrl("/api/stream/manga-page", {
+                    slug,
+                    chapter: chapterFile,
+                    page: currentPage - 1,
+                  })}
                   alt={`Page ${currentPage}`}
                   style={getImageFilterStyle()}
                   className={cn(
@@ -1670,7 +1679,11 @@ export function MangaReader({
                     <>
                       {currentPage < totalPages && (
                         <img
-                          src={`/api/stream/manga-page?slug=${encodeURIComponent(slug)}&chapter=${encodeURIComponent(chapterFile)}&page=${currentPage}`}
+                          src={buildStreamUrl("/api/stream/manga-page", {
+                            slug,
+                            chapter: chapterFile,
+                            page: currentPage,
+                          })}
                           alt={`Page ${currentPage + 1}`}
                           style={getImageFilterStyle()}
                           className={cn(
@@ -1680,7 +1693,11 @@ export function MangaReader({
                         />
                       )}
                       <img
-                        src={`/api/stream/manga-page?slug=${encodeURIComponent(slug)}&chapter=${encodeURIComponent(chapterFile)}&page=${currentPage - 1}`}
+                        src={buildStreamUrl("/api/stream/manga-page", {
+                          slug,
+                          chapter: chapterFile,
+                          page: currentPage - 1,
+                        })}
                         alt={`Page ${currentPage}`}
                         style={getImageFilterStyle()}
                         className={cn(
@@ -1695,7 +1712,11 @@ export function MangaReader({
                   ) : (
                     <>
                       <img
-                        src={`/api/stream/manga-page?slug=${encodeURIComponent(slug)}&chapter=${encodeURIComponent(chapterFile)}&page=${currentPage - 1}`}
+                        src={buildStreamUrl("/api/stream/manga-page", {
+                          slug,
+                          chapter: chapterFile,
+                          page: currentPage - 1,
+                        })}
                         alt={`Page ${currentPage}`}
                         style={getImageFilterStyle()}
                         className={cn(
@@ -1708,7 +1729,11 @@ export function MangaReader({
                       />
                       {currentPage < totalPages && (
                         <img
-                          src={`/api/stream/manga-page?slug=${encodeURIComponent(slug)}&chapter=${encodeURIComponent(chapterFile)}&page=${currentPage}`}
+                          src={buildStreamUrl("/api/stream/manga-page", {
+                            slug,
+                            chapter: chapterFile,
+                            page: currentPage,
+                          })}
                           alt={`Page ${currentPage}`}
                           style={getImageFilterStyle()}
                           className={cn(

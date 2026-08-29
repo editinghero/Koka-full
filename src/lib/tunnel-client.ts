@@ -17,6 +17,7 @@ export interface ConnectedNodeInfo {
 }
 
 const DEFAULT_TUNNEL_KEY = "koka:hybrid:tunnel_url";
+const DEFAULT_TUNNEL_SECRET_KEY = "koka:hybrid:tunnel_secret";
 
 export function getStoredTunnelUrl(): string {
   if (typeof window === "undefined") return "";
@@ -36,11 +37,37 @@ export function setStoredTunnelUrl(url: string): void {
   }
 }
 
+export function getStoredTunnelSecret(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return localStorage.getItem(DEFAULT_TUNNEL_SECRET_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setStoredTunnelSecret(secret: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DEFAULT_TUNNEL_SECRET_KEY, secret.trim());
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Probes the target streaming tunnel URL for health and library metadata
  */
-export async function probeTunnelNode(endpointUrl?: string): Promise<ConnectedNodeInfo> {
-  const target = endpointUrl || getStoredTunnelUrl() || (typeof window !== "undefined" ? window.location.origin : "");
+export async function probeTunnelNode(
+  endpointUrl?: string,
+  secretKey?: string,
+): Promise<ConnectedNodeInfo> {
+  const target =
+    endpointUrl ||
+    getStoredTunnelUrl() ||
+    (typeof window !== "undefined" ? window.location.origin : "");
+  const secret =
+    secretKey !== undefined ? secretKey : getStoredTunnelSecret();
   
   if (!target) {
     return {
@@ -61,12 +88,17 @@ export async function probeTunnelNode(endpointUrl?: string): Promise<ConnectedNo
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (secret) {
+      headers["X-Koka-Stream-Secret"] = secret;
+    }
 
     const res = await fetch(`${cleanUrl}/api/scanner/state`, {
       method: "GET",
       signal: controller.signal,
-      headers: { Accept: "application/json" },
+      headers,
     });
     clearTimeout(timeoutId);
 
@@ -117,7 +149,26 @@ export async function probeTunnelNode(endpointUrl?: string): Promise<ConnectedNo
       mangaCount: 0,
       latencyMs,
       lastChecked: Date.now(),
-      errorMessage: err instanceof Error ? err.message : "Connection timed out or refused",
+      errorMessage:
+        err instanceof Error ? err.message : "Connection timed out or refused",
     };
   }
+}
+
+export function buildStreamUrl(
+  path: string,
+  params: Record<string, string | number | undefined>,
+): string {
+  const tunnel = getStoredTunnelUrl();
+  const secret = getStoredTunnelSecret();
+  const base = tunnel ? tunnel.replace(/\/+$/, "") : "";
+  const query = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) query.set(k, String(v));
+  }
+  if (secret) {
+    query.set("secret", secret);
+  }
+  const queryString = query.toString();
+  return `${base}${path}${queryString ? `?${queryString}` : ""}`;
 }

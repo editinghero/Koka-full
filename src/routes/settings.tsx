@@ -661,10 +661,15 @@ function TagManagerSection() {
 }
 
 function LocalMediaLibrarySection() {
+  const [tunnelUrl, setTunnelUrl] = useState("");
+  const [tunnelSecret, setTunnelSecret] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
   const [animePath, setAnimePath] = useState("./anime");
   const [mangaPath, setMangaPath] = useState("./manga");
   const [isSaving, setIsSaving] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [nodeStatus, setNodeStatus] = useState<import("@/lib/tunnel-client").ConnectedNodeInfo | null>(null);
 
   const { data: scanState, refetch: refetchScan } = useQuery({
     queryKey: ["settingsLibraryScan"],
@@ -672,22 +677,57 @@ function LocalMediaLibrarySection() {
   });
 
   useEffect(() => {
+    import("@/lib/tunnel-client").then(({ getStoredTunnelUrl, getStoredTunnelSecret, probeTunnelNode }) => {
+      const u = getStoredTunnelUrl();
+      const s = getStoredTunnelSecret();
+      setTunnelUrl(u);
+      setTunnelSecret(s);
+      if (u) {
+        probeTunnelNode(u, s).then(setNodeStatus);
+      }
+    });
+
     getMediaConfig().then((cfg) => {
       if (cfg.animePath) setAnimePath(cfg.animePath);
       if (cfg.mangaPath) setMangaPath(cfg.mangaPath);
     });
   }, []);
 
-  const handleSavePaths = async () => {
+  const handleTestTunnel = async () => {
+    setIsTesting(true);
+    try {
+      const { probeTunnelNode, setStoredTunnelUrl, setStoredTunnelSecret } = await import("@/lib/tunnel-client");
+      setStoredTunnelUrl(tunnelUrl);
+      setStoredTunnelSecret(tunnelSecret);
+      const res = await probeTunnelNode(tunnelUrl, tunnelSecret);
+      setNodeStatus(res);
+      if (res.online) {
+        toast.success(`Connected to ${res.nodeName} (${res.latencyMs}ms)`);
+      } else {
+        toast.error(res.errorMessage || "Could not connect to streaming tunnel");
+      }
+    } catch (err) {
+      toast.error("Failed to probe tunnel");
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const handleSaveAll = async () => {
     setIsSaving(true);
     try {
+      const { setStoredTunnelUrl, setStoredTunnelSecret, probeTunnelNode } = await import("@/lib/tunnel-client");
+      setStoredTunnelUrl(tunnelUrl);
+      setStoredTunnelSecret(tunnelSecret);
       await updateMediaConfig({
         data: { animePath, mangaPath },
       });
-      toast.success("Library paths saved and re-scanned");
+      const res = await probeTunnelNode(tunnelUrl, tunnelSecret);
+      setNodeStatus(res);
+      toast.success("Streaming settings and paths saved");
       refetchScan();
     } catch (err) {
-      toast.error("Failed to update paths");
+      toast.error("Failed to update settings");
     } finally {
       setIsSaving(false);
     }
@@ -713,30 +753,87 @@ function LocalMediaLibrarySection() {
 
   return (
     <section className="panel p-5">
-      <h2 className="font-display text-sm font-semibold">
-        Local Media Library
-      </h2>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Configure the local hard drive paths for your Anime and Manga
-        collection. Episodes, seasons, manga image folders, and comic archives
-        (.cbz, .zip, .cbr) are indexed automatically.
-      </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-display text-sm font-semibold">
+            Streaming Bridge & Local Media
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Connect your local Desktop PC or Mobile Termux streamer to stream video and manga through Cloudflare Tunnel.
+          </p>
+        </div>
+        {nodeStatus && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border",
+              nodeStatus.online
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                : "border-border bg-secondary/50 text-muted-foreground"
+            )}
+          >
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                nodeStatus.online ? "bg-emerald-400 animate-pulse" : "bg-muted-foreground"
+              )}
+            />
+            {nodeStatus.online ? `${nodeStatus.nodeName} (${nodeStatus.latencyMs}ms)` : "Offline"}
+          </span>
+        )}
+      </div>
 
       <div className="mt-4 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="anime-path">Anime Folder Path</Label>
+            <Label htmlFor="tunnel-url">Cloudflare Tunnel URL</Label>
             <Input
-              id="anime-path"
-              value={animePath}
-              onChange={(e) => setAnimePath(e.target.value)}
-              placeholder="./anime or D:/Anime"
+              id="tunnel-url"
+              value={tunnelUrl}
+              onChange={(e) => setTunnelUrl(e.target.value)}
+              placeholder="https://xxx.trycloudflare.com or https://stream.domain.com"
               className="text-xs font-mono"
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="manga-path">Manga Folder Path</Label>
+            <Label htmlFor="tunnel-secret">Stream Secret Key</Label>
+            <div className="flex gap-2">
+              <Input
+                id="tunnel-secret"
+                type={showSecret ? "text" : "password"}
+                value={tunnelSecret}
+                onChange={(e) => setTunnelSecret(e.target.value)}
+                placeholder="Paste secret from koka-streamer/config.json"
+                className="text-xs font-mono"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                type="button"
+                onClick={() => setShowSecret((s) => !s)}
+                aria-label="Toggle secret visibility"
+                className="shrink-0"
+              >
+                {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="anime-path">Local Anime Path (Local Dev Fallback)</Label>
+            <Input
+              id="anime-path"
+              value={animePath}
+              onChange={(e) => setAnimePath(e.target.value)}
+              placeholder="./anime or E:/AniStash-Play/anime/finished"
+              className="text-xs font-mono"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="manga-path">Local Manga Path (Local Dev Fallback)</Label>
             <Input
               id="manga-path"
               value={mangaPath}
@@ -749,36 +846,45 @@ function LocalMediaLibrarySection() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/40 px-2.5 py-1 font-medium">
-              Anime: <strong>{scanState?.anime.length ?? 0} titles</strong> (
-              {totalAnimeEps} eps)
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/40 px-2.5 py-1 font-medium">
-              Manga: <strong>{scanState?.manga.length ?? 0} titles</strong> (
-              {totalMangaChs} chs)
-            </span>
+            {nodeStatus?.online ? (
+              <>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-400">
+                  Streamer Anime: <strong>{nodeStatus.animeCount} series</strong>
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-400">
+                  Streamer Manga: <strong>{nodeStatus.mangaCount} series</strong>
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/40 px-2.5 py-1 font-medium">
+                  Local Anime: <strong>{scanState?.anime.length ?? 0} titles</strong> ({totalAnimeEps} eps)
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/40 px-2.5 py-1 font-medium">
+                  Local Manga: <strong>{scanState?.manga.length ?? 0} titles</strong> ({totalMangaChs} chs)
+                </span>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={handleSavePaths}
-              disabled={isSaving || isScanning}
-              className="h-8 text-xs"
+              onClick={handleTestTunnel}
+              disabled={isTesting || !tunnelUrl}
+              className="h-8 text-xs gap-1.5"
             >
-              {isSaving ? "Saving..." : "Save Paths"}
+              <RefreshCw className={cn("h-3.5 w-3.5", isTesting && "animate-spin")} />
+              {isTesting ? "Testing..." : "Test Connection"}
             </Button>
             <Button
               size="sm"
-              onClick={handleRescan}
-              disabled={isScanning || isSaving}
-              className="h-8 text-xs gap-1.5"
+              onClick={handleSaveAll}
+              disabled={isSaving || isScanning}
+              className="h-8 text-xs"
             >
-              <RefreshCw
-                className={cn("h-3.5 w-3.5", isScanning && "animate-spin")}
-              />
-              {isScanning ? "Scanning..." : "Rescan Library"}
+              {isSaving ? "Saving..." : "Save Settings"}
             </Button>
           </div>
         </div>

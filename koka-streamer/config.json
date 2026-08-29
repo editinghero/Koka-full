@@ -2,6 +2,6 @@
   "port": 3399,
   "nodeName": "My Streaming Node",
   "secret": "astralkA9z84vSupNH3gi65XOGhe2ECquarks",
-  "animePath": "./anime",
+  "animePath": "E:\\AniStash-Play\\anime\\finished",
   "mangaPath": "./manga"
 }
