@@ -22,6 +22,10 @@ dist-ssr
 !.env.example
 .dev.vars
 *.local
+config.json
+koka-streamer/config.json
+!config.example.json
+!koka-streamer/config.example.json
 
 # Wrangler / Cloudflare
 .wrangler/

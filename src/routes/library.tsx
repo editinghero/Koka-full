@@ -18,7 +18,7 @@ import {
 import { AnimeCard, Cover, countdown } from "@/components/AnimeCard";
 import { PageHeader } from "@/components/AppShell";
 import { useLibrary, useMediaMode } from "@/lib/store";
-import { getLibraryScanStatus } from "@/lib/media.functions";
+import { getActiveMediaScan } from "@/lib/tunnel-client";
 import { UnlinkedFolderModal } from "@/components/UnlinkedFolderModal";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { MangaReader } from "@/components/reader/MangaReader";
@@ -266,7 +266,7 @@ function LibraryPage() {
 
   const { data: scanState, refetch: refetchScan } = useQuery({
     queryKey: ["libraryScanStatus"],
-    queryFn: () => getLibraryScanStatus(),
+    queryFn: () => getActiveMediaScan(),
     staleTime: 1000 * 30,
   });
 

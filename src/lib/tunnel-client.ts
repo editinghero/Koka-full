@@ -155,6 +155,44 @@ export async function probeTunnelNode(
   }
 }
 
+export async function getActiveMediaScan(): Promise<import("@/server/scanner.server").LibraryScanState> {
+  const tunnel = getStoredTunnelUrl();
+  const secret = getStoredTunnelSecret();
+  if (tunnel) {
+    try {
+      const cleanUrl = tunnel.replace(/\/+$/, "");
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (secret) {
+        headers["X-Koka-Stream-Secret"] = secret;
+      }
+      const res = await fetch(`${cleanUrl}/api/scanner/state`, { headers });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          anime?: import("@/server/scanner.server").ScannedAnime[];
+          manga?: import("@/server/scanner.server").ScannedManga[];
+          timestamp?: number;
+        };
+        return {
+          isScanning: false,
+          lastScannedAt: data.timestamp || Date.now(),
+          anime: data.anime || [],
+          manga: data.manga || [],
+        };
+      }
+    } catch (err) {
+      console.warn("Tunnel scan probe error:", err);
+    }
+  }
+
+  // Fallback to local server function (for local dev mode)
+  try {
+    const { getLibraryScanStatus } = await import("@/lib/media.functions");
+    return await getLibraryScanStatus();
+  } catch {
+    return { isScanning: false, lastScannedAt: 0, anime: [], manga: [] };
+  }
+}
+
 export function buildStreamUrl(
   path: string,
   params: Record<string, string | number | undefined>,
