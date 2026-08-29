@@ -1,9 +1,25 @@
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
-import { extname, join } from "node:path";
+import { extname, join, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
-import { findAnimeBySlug, findMangaBySlug, getMangaPageBuffer, getMimeType } from "./media.server";
+import {
+  findAnimeBySlug,
+  findMangaBySlug,
+  getMangaPageBuffer,
+  getMimeType,
+} from "./media.server";
 
-export async function handleMediaStreamRequest(request: Request): Promise<Response | null> {
+function isSafePath(base: string, target: string): boolean {
+  const resolvedBase = resolve(base);
+  const resolvedTarget = resolve(target);
+  return (
+    resolvedTarget === resolvedBase ||
+    resolvedTarget.startsWith(resolvedBase + sep)
+  );
+}
+
+export async function handleMediaStreamRequest(
+  request: Request,
+): Promise<Response | null> {
   const url = new URL(request.url);
   const pathname = url.pathname;
 
@@ -26,9 +42,14 @@ export async function handleMediaStreamRequest(request: Request): Promise<Respon
     // Search in anime seasons
     for (const s of anime.seasons) {
       if (!season || s.name === season) {
-        const ep = s.episodes.find((e) => e.file === file || e.relativePath === file);
+        const ep = s.episodes.find(
+          (e) => e.file === file || e.relativePath === file,
+        );
         if (ep) {
           targetPath = join(anime.folderPath, ep.relativePath);
+          if (!isSafePath(anime.folderPath, targetPath)) {
+            return new Response("Forbidden path", { status: 403 });
+          }
           break;
         }
       }
@@ -37,6 +58,9 @@ export async function handleMediaStreamRequest(request: Request): Promise<Respon
     if (!targetPath || !existsSync(targetPath)) {
       // Fallback: direct check in folder
       const direct = join(anime.folderPath, file);
+      if (!isSafePath(anime.folderPath, direct)) {
+        return new Response("Forbidden path", { status: 403 });
+      }
       if (existsSync(direct)) {
         targetPath = direct;
       } else {
@@ -99,6 +123,9 @@ export async function handleMediaStreamRequest(request: Request): Promise<Respon
     }
 
     const subPath = join(anime.folderPath, file);
+    if (!isSafePath(anime.folderPath, subPath)) {
+      return new Response("Forbidden path", { status: 403 });
+    }
     if (!existsSync(subPath)) {
       return new Response("Subtitle file not found", { status: 404 });
     }
@@ -109,7 +136,9 @@ export async function handleMediaStreamRequest(request: Request): Promise<Respon
 
     return new Response(content, {
       headers: {
-        "Content-Type": isVtt ? "text/vtt; charset=utf-8" : "text/plain; charset=utf-8",
+        "Content-Type": isVtt
+          ? "text/vtt; charset=utf-8"
+          : "text/plain; charset=utf-8",
         "Cache-Control": "public, max-age=3600",
       },
     });
@@ -152,7 +181,8 @@ export async function handleMediaStreamRequest(request: Request): Promise<Respon
 
     if (!slug) return new Response("Missing slug", { status: 400 });
 
-    const media = type === "manga" ? findMangaBySlug(slug) : findAnimeBySlug(slug);
+    const media =
+      type === "manga" ? findMangaBySlug(slug) : findAnimeBySlug(slug);
     if (!media) return new Response("Not found", { status: 404 });
 
     const baseNames = isBanner
