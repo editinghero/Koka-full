@@ -203,6 +203,12 @@
   backdrop-filter: blur(32px) saturate(180%);
 }
 
+@utility glass-popover {
+  background-color: color-mix(in srgb, var(--color-popover) 75%, transparent);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  backdrop-filter: blur(32px) saturate(180%);
+}
+
 @utility glass-floating {
   background-color: color-mix(in srgb, var(--color-background) 75%, transparent);
   -webkit-backdrop-filter: blur(36px) saturate(190%);

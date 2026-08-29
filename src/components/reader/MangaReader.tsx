@@ -877,7 +877,7 @@ export function MangaReader({
             <div className="h-4 w-px bg-border mx-0.5" />
 
             {/* Mobile View: Mode Dropdown Trigger with ChevronDown */}
-            <div className="relative sm:hidden">
+            <div className="sm:hidden">
               <Button
                 variant="ghost"
                 size="icon"
@@ -894,71 +894,6 @@ export function MangaReader({
                 {mode === "single" && <FileText className="w-4 h-4" />}
                 {mode === "double" && <Columns2 className="w-4 h-4" />}
               </Button>
-
-              {showMobileModeMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-[125]"
-                    onClick={() => setShowMobileModeMenu(false)}
-                  />
-                  <div className="fixed inset-x-6 top-16 z-[130] mx-auto w-48 border border-border bg-popover/90 backdrop-blur-3xl rounded-2xl shadow-2xl p-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-150">
-                    <button
-                      onClick={() => {
-                        handleModeSwitch("webtoon");
-                        setShowMobileModeMenu(false);
-                      }}
-                      className={cn(
-                        "px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors",
-                        mode === "webtoon"
-                          ? "bg-primary text-primary-foreground font-semibold"
-                          : "hover:bg-accent text-foreground",
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Scroll className="w-3.5 h-3.5" />
-                        <span>Webtoon</span>
-                      </div>
-                      {mode === "webtoon" && <Check className="w-3.5 h-3.5" />}
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleModeSwitch("single");
-                        setShowMobileModeMenu(false);
-                      }}
-                      className={cn(
-                        "px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors",
-                        mode === "single"
-                          ? "bg-primary text-primary-foreground font-semibold"
-                          : "hover:bg-accent text-foreground",
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>Single Page</span>
-                      </div>
-                      {mode === "single" && <Check className="w-3.5 h-3.5" />}
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleModeSwitch("double");
-                        setShowMobileModeMenu(false);
-                      }}
-                      className={cn(
-                        "px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors",
-                        mode === "double"
-                          ? "bg-primary text-primary-foreground font-semibold"
-                          : "hover:bg-accent text-foreground",
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Columns2 className="w-3.5 h-3.5" />
-                        <span>Double Page</span>
-                      </div>
-                      {mode === "double" && <Check className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </>
-              )}
             </div>
 
             {/* Desktop View: Horizontal Reader Mode Selector */}
@@ -1021,57 +956,21 @@ export function MangaReader({
                   )}
                 </Button>
 
-                {/* Auto-scroll Speed Popover */}
-                <div className="relative">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                      setShowSpeedMenu((prev) => !prev);
-                      setShowMoreMenu(false);
-                      setShowChapterMenu(false);
-                      setShowMobileModeMenu(false);
-                    }}
-                    title="Auto-Scroll Speed (Seconds)"
-                  >
-                    <Gauge className="w-4 h-4" />
-                  </Button>
-
-                  {showSpeedMenu && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-[125]"
-                        onClick={() => setShowSpeedMenu(false)}
-                      />
-                      <div className="fixed inset-x-4 top-16 z-[130] mx-auto w-auto max-w-xs border border-border bg-popover/90 backdrop-blur-3xl rounded-2xl shadow-2xl p-4 sm:absolute sm:inset-auto sm:right-0 sm:top-10 sm:w-56 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-150">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-muted-foreground uppercase text-[10px]">
-                            Scroll Speed
-                          </span>
-                          <span className="font-mono font-bold text-foreground">
-                            {autoScrollSeconds}s / screen
-                          </span>
-                        </div>
-                        <Slider
-                          min={3}
-                          max={35}
-                          step={1}
-                          value={[autoScrollSeconds]}
-                          onValueChange={(val) => {
-                            if (val[0])
-                              updatePreference({ autoScrollSeconds: val[0] });
-                          }}
-                          className="flex-1"
-                        />
-                        <div className="flex justify-between text-[10px] text-muted-foreground">
-                          <span>Fast (3s)</span>
-                          <span>Slow (35s)</span>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+                {/* Auto-scroll Speed Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setShowSpeedMenu((prev) => !prev);
+                    setShowMoreMenu(false);
+                    setShowChapterMenu(false);
+                    setShowMobileModeMenu(false);
+                  }}
+                  title="Auto-Scroll Speed (Seconds)"
+                >
+                  <Gauge className="w-4 h-4" />
+                </Button>
               </div>
             )}
 
@@ -1092,263 +991,21 @@ export function MangaReader({
               </Button>
             )}
 
-            {/* Unified "More" Settings Popover (Fit, Zoom, Brightness, Contrast, Tones, Filters) */}
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setShowMoreMenu((prev) => !prev);
-                  setShowSpeedMenu(false);
-                  setShowChapterMenu(false);
-                  setShowMobileModeMenu(false);
-                }}
-                className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
-                title="Display, Fit & Lighting Settings"
-              >
-                <SlidersHorizontal className="w-4 h-4" />
-              </Button>
-
-              {showMoreMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-[125]"
-                    onClick={() => setShowMoreMenu(false)}
-                  />
-                  <div className="fixed inset-x-4 top-16 z-[130] mx-auto w-auto max-w-sm max-h-[80vh] overflow-y-auto border border-border bg-popover/90 backdrop-blur-3xl rounded-2xl shadow-2xl p-4 sm:absolute sm:inset-auto sm:right-0 sm:top-10 sm:w-80 flex flex-col gap-3.5 animate-in fade-in zoom-in-95 duration-150">
-                    <div className="flex items-center justify-between border-b border-border/80 pb-2">
-                      <span className="text-xs font-bold text-foreground">
-                        Reading & Display Settings
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
-                        onClick={() =>
-                          updatePreference({
-                            fit: "contain",
-                            zoom: 100,
-                            brightness: 100,
-                            contrast: 100,
-                            filterMode: "default",
-                            grayscale: false,
-                            pageTexture: false,
-                          })
-                        }
-                      >
-                        Reset All
-                      </Button>
-                    </div>
-
-                    {/* Section 1: Image Sizing / Fit Mode */}
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                        Image Fit
-                      </span>
-                      <div className="grid grid-cols-2 gap-1 text-xs">
-                        {(
-                          [
-                            ["contain", "Fit Screen"],
-                            ["width", "Fit Width"],
-                            ["height", "Fit Height"],
-                            ["original", "1:1 Original"],
-                          ] as const
-                        ).map(([fKey, fLabel]) => (
-                          <button
-                            key={fKey}
-                            onClick={() => updatePreference({ fit: fKey })}
-                            className={cn(
-                              "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
-                              fit === fKey
-                                ? "bg-primary text-primary-foreground font-semibold"
-                                : "hover:bg-accent text-foreground",
-                            )}
-                          >
-                            <span>{fLabel}</span>
-                            {fit === fKey && <Check className="w-3 h-3 ml-1" />}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Section 2: Zoom Slider */}
-                    <div className="space-y-1.5 border-t border-border/80 pt-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                          Zoom
-                        </span>
-                        <span className="font-mono font-medium">
-                          {zoomLevel}%
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-7 w-7 rounded-lg"
-                          onClick={() =>
-                            updatePreference({
-                              zoom: Math.max(50, zoomLevel - 15),
-                            })
-                          }
-                          title="Zoom Out"
-                        >
-                          <ZoomOut className="w-3.5 h-3.5" />
-                        </Button>
-                        <Slider
-                          min={50}
-                          max={250}
-                          step={5}
-                          value={[zoomLevel]}
-                          onValueChange={(val) => {
-                            if (val[0]) updatePreference({ zoom: val[0] });
-                          }}
-                          className="flex-1"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-7 w-7 rounded-lg"
-                          onClick={() =>
-                            updatePreference({
-                              zoom: Math.min(250, zoomLevel + 15),
-                            })
-                          }
-                          title="Zoom In"
-                        >
-                          <ZoomIn className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 rounded-lg"
-                          onClick={() => updatePreference({ zoom: 100 })}
-                          title="Reset Zoom"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Section 3: Brightness & Contrast */}
-                    <div className="space-y-2 border-t border-border/80 pt-2">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-muted-foreground font-medium">
-                            Brightness
-                          </span>
-                          <span className="font-mono text-foreground font-semibold">
-                            {brightness}%
-                          </span>
-                        </div>
-                        <Slider
-                          min={50}
-                          max={150}
-                          step={5}
-                          value={[brightness]}
-                          onValueChange={(val) => {
-                            if (val[0])
-                              updatePreference({ brightness: val[0] });
-                          }}
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-muted-foreground font-medium">
-                            Contrast
-                          </span>
-                          <span className="font-mono text-foreground font-semibold">
-                            {contrast}%
-                          </span>
-                        </div>
-                        <Slider
-                          min={50}
-                          max={150}
-                          step={5}
-                          value={[contrast]}
-                          onValueChange={(val) => {
-                            if (val[0]) updatePreference({ contrast: val[0] });
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Section 4: Color Modes Grid */}
-                    <div className="space-y-1.5 pt-2 border-t border-border/80">
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                        Color Tone
-                      </span>
-                      <div className="grid grid-cols-2 gap-1 text-xs">
-                        {(
-                          [
-                            ["default", "Normal"],
-                            ["night", "Night Mode"],
-                            ["sepia", "Vintage Sepia"],
-                            ["invert", "Invert Dark"],
-                          ] as const
-                        ).map(([cKey, cLabel]) => (
-                          <button
-                            key={cKey}
-                            onClick={() =>
-                              updatePreference({ filterMode: cKey })
-                            }
-                            className={cn(
-                              "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
-                              filterMode === cKey
-                                ? "bg-primary text-primary-foreground font-semibold"
-                                : "hover:bg-accent text-foreground",
-                            )}
-                          >
-                            <span>{cLabel}</span>
-                            {filterMode === cKey && (
-                              <Check className="w-3 h-3 ml-1" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Section 5: Toggles */}
-                    <div className="grid grid-cols-2 gap-1 pt-2 border-t border-border/80">
-                      <button
-                        onClick={() =>
-                          updatePreference({ grayscale: !grayscale })
-                        }
-                        className={cn(
-                          "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
-                          grayscale
-                            ? "bg-secondary font-semibold text-foreground border border-border"
-                            : "hover:bg-accent text-muted-foreground",
-                        )}
-                      >
-                        <span>Grayscale</span>
-                        {grayscale && (
-                          <Check className="w-3 h-3 text-primary" />
-                        )}
-                      </button>
-
-                      <button
-                        onClick={() =>
-                          updatePreference({ pageTexture: !pageTexture })
-                        }
-                        className={cn(
-                          "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
-                          pageTexture
-                            ? "bg-secondary font-semibold text-foreground border border-border"
-                            : "hover:bg-accent text-muted-foreground",
-                        )}
-                      >
-                        <span>Paper Grain</span>
-                        {pageTexture && (
-                          <Check className="w-3 h-3 text-primary" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+            {/* Unified "More" Settings Trigger */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setShowMoreMenu((prev) => !prev);
+                setShowSpeedMenu(false);
+                setShowChapterMenu(false);
+                setShowMobileModeMenu(false);
+              }}
+              className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+              title="Display, Fit & Lighting Settings"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+            </Button>
 
             {/* Chapter Selector Drawer Toggle */}
             <Button
@@ -1426,48 +1083,398 @@ export function MangaReader({
         </div>
       )}
 
-      {/* Chapter Drawer with Multiline Word Wrapping */}
-      {showChapterMenu && (
-        <div className="fixed right-4 top-16 bottom-20 w-80 max-w-[calc(100vw-2rem)] border border-border bg-popover/90 backdrop-blur-3xl rounded-2xl shadow-2xl p-4 overflow-y-auto z-[130] flex flex-col gap-3 animate-in slide-in-from-right-4 duration-200">
-          <div className="flex items-center justify-between border-b border-border/80 pb-2">
-            <h3 className="font-display font-semibold text-sm whitespace-normal break-words leading-snug flex-1 pr-2">
-              {title || "Chapters"}
-            </h3>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-full shrink-0"
-              onClick={() => setShowChapterMenu(false)}
+      {/* Top-Level Popups (Directly attached to viewport to guarantee pristine hardware-accelerated glass blur) */}
+
+      {/* 1. Mobile Mode Menu */}
+      {showMobileModeMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-[125]"
+            onClick={() => setShowMobileModeMenu(false)}
+          />
+          <div className="fixed inset-x-6 top-16 z-[130] mx-auto w-48 border border-border/80 glass-popover rounded-2xl shadow-2xl p-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-150">
+            <button
+              onClick={() => {
+                handleModeSwitch("webtoon");
+                setShowMobileModeMenu(false);
+              }}
+              className={cn(
+                "px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors",
+                mode === "webtoon"
+                  ? "bg-primary text-primary-foreground font-semibold"
+                  : "hover:bg-accent text-foreground",
+              )}
             >
-              <X className="w-4 h-4" />
-            </Button>
+              <div className="flex items-center gap-2">
+                <Scroll className="w-3.5 h-3.5" />
+                <span>Webtoon</span>
+              </div>
+              {mode === "webtoon" && <Check className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              onClick={() => {
+                handleModeSwitch("single");
+                setShowMobileModeMenu(false);
+              }}
+              className={cn(
+                "px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors",
+                mode === "single"
+                  ? "bg-primary text-primary-foreground font-semibold"
+                  : "hover:bg-accent text-foreground",
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <FileText className="w-3.5 h-3.5" />
+                <span>Single Page</span>
+              </div>
+              {mode === "single" && <Check className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              onClick={() => {
+                handleModeSwitch("double");
+                setShowMobileModeMenu(false);
+              }}
+              className={cn(
+                "px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors",
+                mode === "double"
+                  ? "bg-primary text-primary-foreground font-semibold"
+                  : "hover:bg-accent text-foreground",
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Columns2 className="w-3.5 h-3.5" />
+                <span>Double Page</span>
+              </div>
+              {mode === "double" && <Check className="w-3.5 h-3.5" />}
+            </button>
           </div>
-          <div className="grid gap-1 overflow-y-auto">
-            {chapters.map((ch) => {
-              const isSelected = ch.file === chapterFile;
-              return (
-                <button
-                  key={ch.file}
-                  onClick={() => {
-                    onChapterChange(ch.file);
-                    setShowChapterMenu(false);
-                  }}
-                  className={cn(
-                    "w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors min-w-0 gap-2",
-                    isSelected
-                      ? "bg-primary text-primary-foreground font-semibold"
-                      : "hover:bg-accent text-foreground",
-                  )}
+        </>
+      )}
+
+      {/* 2. Auto-Scroll Speed Menu */}
+      {showSpeedMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-[125]"
+            onClick={() => setShowSpeedMenu(false)}
+          />
+          <div className="fixed inset-x-4 top-16 z-[130] mx-auto w-auto max-w-xs sm:left-1/2 sm:-translate-x-1/2 sm:w-56 border border-border/80 glass-popover rounded-2xl shadow-2xl p-4 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-muted-foreground uppercase text-[10px]">
+                Scroll Speed
+              </span>
+              <span className="font-mono font-bold text-foreground">
+                {autoScrollSeconds}s / screen
+              </span>
+            </div>
+            <Slider
+              min={3}
+              max={35}
+              step={1}
+              value={[autoScrollSeconds]}
+              onValueChange={(val) => {
+                if (val[0])
+                  updatePreference({ autoScrollSeconds: val[0] });
+              }}
+              className="flex-1"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>Fast (3s)</span>
+              <span>Slow (35s)</span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 3. Display, Fit & Lighting Settings Menu */}
+      {showMoreMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-[125]"
+            onClick={() => setShowMoreMenu(false)}
+          />
+          <div className="fixed inset-x-4 top-16 z-[130] mx-auto w-auto max-w-sm max-h-[80vh] overflow-y-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-80 border border-border/80 glass-popover rounded-2xl shadow-2xl p-4 flex flex-col gap-3.5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border/80 pb-2">
+              <span className="text-xs font-bold text-foreground">
+                Reading & Display Settings
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  updatePreference({
+                    fit: "contain",
+                    zoom: 100,
+                    brightness: 100,
+                    contrast: 100,
+                    filterMode: "default",
+                    grayscale: false,
+                    pageTexture: false,
+                  })
+                }
+              >
+                Reset All
+              </Button>
+            </div>
+
+            {/* Section 1: Image Sizing / Fit Mode */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Image Fit
+              </span>
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                {(
+                  [
+                    ["contain", "Fit Screen"],
+                    ["width", "Fit Width"],
+                    ["height", "Fit Height"],
+                    ["original", "1:1 Original"],
+                  ] as const
+                ).map(([fKey, fLabel]) => (
+                  <button
+                    key={fKey}
+                    onClick={() => updatePreference({ fit: fKey })}
+                    className={cn(
+                      "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
+                      fit === fKey
+                        ? "bg-primary text-primary-foreground font-semibold"
+                        : "hover:bg-accent text-foreground",
+                    )}
+                  >
+                    <span>{fLabel}</span>
+                    {fit === fKey && <Check className="w-3 h-3 ml-1" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Section 2: Zoom Slider */}
+            <div className="space-y-1.5 border-t border-border/80 pt-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Zoom
+                </span>
+                <span className="font-mono font-medium">
+                  {zoomLevel}%
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 rounded-lg"
+                  onClick={() =>
+                    updatePreference({
+                      zoom: Math.max(50, zoomLevel - 15),
+                    })
+                  }
+                  title="Zoom Out"
                 >
-                  <span className="whitespace-normal break-words leading-relaxed flex-1 text-left">
-                    {ch.label}
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </Button>
+                <Slider
+                  min={50}
+                  max={250}
+                  step={5}
+                  value={[zoomLevel]}
+                  onValueChange={(val) => {
+                    if (val[0]) updatePreference({ zoom: val[0] });
+                  }}
+                  className="flex-1"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 rounded-lg"
+                  onClick={() =>
+                    updatePreference({
+                      zoom: Math.min(250, zoomLevel + 15),
+                    })
+                  }
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-lg"
+                  onClick={() => updatePreference({ zoom: 100 })}
+                  title="Reset Zoom"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Section 3: Brightness & Contrast */}
+            <div className="space-y-2 border-t border-border/80 pt-2">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-muted-foreground font-medium">
+                    Brightness
                   </span>
-                  {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
-                </button>
-              );
-            })}
+                  <span className="font-mono text-foreground font-semibold">
+                    {brightness}%
+                  </span>
+                </div>
+                <Slider
+                  min={50}
+                  max={150}
+                  step={5}
+                  value={[brightness]}
+                  onValueChange={(val) => {
+                    if (val[0])
+                      updatePreference({ brightness: val[0] });
+                  }}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-muted-foreground font-medium">
+                    Contrast
+                  </span>
+                  <span className="font-mono text-foreground font-semibold">
+                    {contrast}%
+                  </span>
+                </div>
+                <Slider
+                  min={50}
+                  max={150}
+                  step={5}
+                  value={[contrast]}
+                  onValueChange={(val) => {
+                    if (val[0]) updatePreference({ contrast: val[0] });
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Section 4: Color Modes Grid */}
+            <div className="space-y-1.5 pt-2 border-t border-border/80">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Color Tone
+              </span>
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                {(
+                  [
+                    ["default", "Normal"],
+                    ["night", "Night Mode"],
+                    ["sepia", "Vintage Sepia"],
+                    ["invert", "Invert Dark"],
+                  ] as const
+                ).map(([cKey, cLabel]) => (
+                  <button
+                    key={cKey}
+                    onClick={() =>
+                      updatePreference({ filterMode: cKey })
+                    }
+                    className={cn(
+                      "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
+                      filterMode === cKey
+                        ? "bg-primary text-primary-foreground font-semibold"
+                        : "hover:bg-accent text-foreground",
+                    )}
+                  >
+                    <span>{cLabel}</span>
+                    {filterMode === cKey && (
+                      <Check className="w-3 h-3 ml-1" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Section 5: Toggles */}
+            <div className="grid grid-cols-2 gap-1 pt-2 border-t border-border/80">
+              <button
+                onClick={() =>
+                  updatePreference({ grayscale: !grayscale })
+                }
+                className={cn(
+                  "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
+                  grayscale
+                    ? "bg-secondary font-semibold text-foreground border border-border"
+                    : "hover:bg-accent text-muted-foreground",
+                )}
+              >
+                <span>Grayscale</span>
+                {grayscale && (
+                  <Check className="w-3 h-3 text-primary" />
+                )}
+              </button>
+
+              <button
+                onClick={() =>
+                  updatePreference({ pageTexture: !pageTexture })
+                }
+                className={cn(
+                  "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
+                  pageTexture
+                    ? "bg-secondary font-semibold text-foreground border border-border"
+                    : "hover:bg-accent text-muted-foreground",
+                )}
+              >
+                <span>Paper Grain</span>
+                {pageTexture && (
+                  <Check className="w-3 h-3 text-primary" />
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+        </>
+      )}
+
+      {/* 4. Chapter Drawer with Multiline Word Wrapping */}
+      {showChapterMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-[125]"
+            onClick={() => setShowChapterMenu(false)}
+          />
+          <div className="fixed right-4 top-16 bottom-20 w-80 max-w-[calc(100vw-2rem)] border border-border/80 glass-popover rounded-2xl shadow-2xl p-4 overflow-y-auto z-[130] flex flex-col gap-3 animate-in slide-in-from-right-4 duration-200">
+            <div className="flex items-center justify-between border-b border-border/80 pb-2">
+              <h3 className="font-display font-semibold text-sm whitespace-normal break-words leading-snug flex-1 pr-2">
+                {title || "Chapters"}
+              </h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-full shrink-0"
+                onClick={() => setShowChapterMenu(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="grid gap-1 overflow-y-auto">
+              {chapters.map((ch) => {
+                const isSelected = ch.file === chapterFile;
+                return (
+                  <button
+                    key={ch.file}
+                    onClick={() => {
+                      onChapterChange(ch.file);
+                      setShowChapterMenu(false);
+                    }}
+                    className={cn(
+                      "w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors min-w-0 gap-2",
+                      isSelected
+                        ? "bg-primary text-primary-foreground font-semibold"
+                        : "hover:bg-accent text-foreground",
+                    )}
+                  >
+                    <span className="whitespace-normal break-words leading-relaxed flex-1 text-left">
+                      {ch.label}
+                    </span>
+                    {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
       )}
 
       {/* Reader Content Area */}
