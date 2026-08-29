@@ -12,66 +12,49 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Load configuration from config.json or environment variables
-let config = {
-  port: 3399,
-  nodeName: `${os.hostname()} (${os.platform()})`,
-  secret: "",
-  animePath: "./anime",
-  mangaPath: "./manga",
-};
+function getFreshConfig() {
+  let cfg = {
+    port: 3399,
+    nodeName: `${os.hostname()} (${os.platform()})`,
+    secret: "",
+    animePath: "./anime",
+    mangaPath: "./manga",
+  };
 
-const configPath = path.resolve(process.cwd(), "config.json");
-if (fs.existsSync(configPath)) {
-  try {
-    const raw = fs.readFileSync(configPath, "utf-8");
-    config = { ...config, ...JSON.parse(raw) };
-  } catch (err) {
-    console.warn("Could not parse config.json, using defaults:", err.message);
+  const configPath = path.resolve(process.cwd(), "config.json");
+  if (fs.existsSync(configPath)) {
+    try {
+      const raw = fs.readFileSync(configPath, "utf-8");
+      cfg = { ...cfg, ...JSON.parse(raw) };
+    } catch (err) {
+      console.warn("Could not parse config.json, using defaults:", err.message);
+    }
   }
+
+  return {
+    PORT: parseInt(process.env.PORT || String(cfg.port), 10),
+    NODE_NAME: process.env.KOKA_NODE_NAME || cfg.nodeName,
+    STREAM_SECRET: process.env.KOKA_STREAM_SECRET || cfg.secret,
+    ANIME_PATH: path.resolve(process.cwd(), process.env.ANIME_PATH || cfg.animePath),
+    MANGA_PATH: path.resolve(process.cwd(), process.env.MANGA_PATH || cfg.mangaPath),
+    NODE_TYPE: os.platform() === "android" || process.env.PREFIX?.includes("termux") ? "mobile" : "desktop",
+  };
 }
 
-const PORT = parseInt(process.env.PORT || String(config.port), 10);
-const NODE_NAME = process.env.KOKA_NODE_NAME || config.nodeName;
-const STREAM_SECRET = process.env.KOKA_STREAM_SECRET || config.secret;
-const ANIME_PATH = path.resolve(process.cwd(), process.env.ANIME_PATH || config.animePath);
-const MANGA_PATH = path.resolve(process.cwd(), process.env.MANGA_PATH || config.mangaPath);
-const NODE_TYPE = os.platform() === "android" || process.env.PREFIX?.includes("termux") ? "mobile" : "desktop";
-
-const MIME_TYPES = {
-  ".mp4": "video/mp4",
-  ".mkv": "video/x-matroska",
-  ".webm": "video/webm",
-  ".vtt": "text/vtt",
-  ".srt": "text/plain",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".webp": "image/webp",
-  ".gif": "image/gif",
-};
-
-function isSafePath(base, target) {
-  if (!base || !target) return false;
-  const resolvedBase = path.resolve(base);
-  const resolvedTarget = path.resolve(target);
-  return resolvedTarget === resolvedBase || resolvedTarget.startsWith(resolvedBase + path.sep);
-}
-
-function naturalSort(a, b) {
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
-}
-
+const initialConfig = getFreshConfig();
 console.log("=========================================");
 console.log(" Koka Streaming Bridge (Standalone)");
-console.log(` Node Name : ${NODE_NAME}`);
-console.log(` Node Type : ${NODE_TYPE}`);
-console.log(` Secret Key: ${STREAM_SECRET ? "Configured (Protected)" : "Disabled (Open)"}`);
-console.log(` Anime Path: ${ANIME_PATH}`);
-console.log(` Manga Path: ${MANGA_PATH}`);
-console.log(` Listening : http://0.0.0.0:${PORT}`);
+console.log(` Node Name : ${initialConfig.NODE_NAME}`);
+console.log(` Node Type : ${initialConfig.NODE_TYPE}`);
+console.log(` Anime Path: ${initialConfig.ANIME_PATH}`);
+console.log(` Manga Path: ${initialConfig.MANGA_PATH}`);
+console.log(` Listening : http://0.0.0.0:${initialConfig.PORT}`);
 console.log("=========================================");
 
 const server = http.createServer((req, res) => {
+  const currentConfig = getFreshConfig();
+  const { PORT, NODE_NAME, STREAM_SECRET, ANIME_PATH, MANGA_PATH, NODE_TYPE } = currentConfig;
+
   // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -87,7 +70,7 @@ const server = http.createServer((req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const pathname = parsedUrl.pathname;
 
-  // 1. Health check endpoint (Public or with Secret)
+  // 1. Health check endpoint
   if (pathname === "/api/health" || pathname === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
@@ -173,7 +156,10 @@ const server = http.createServer((req, res) => {
       }
 
       if (fs.existsSync(MANGA_PATH)) {
-        const mangaDirs = fs.readdirSync(MANGA_PATH, { withFileTypes: true }).filter((d) => d.isDirectory());
+        const rootEntries = fs.readdirSync(MANGA_PATH, { withFileTypes: true });
+        const mangaDirs = rootEntries.filter((d) => d.isDirectory());
+        
+        // 1. Scan manga subdirectories
         mangaList = mangaDirs.map((dir) => {
           const folderPath = path.join(MANGA_PATH, dir.name);
           const slug = dir.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -181,15 +167,28 @@ const server = http.createServer((req, res) => {
 
           try {
             const items = fs.readdirSync(folderPath, { withFileTypes: true });
-            chapters = items
-              .filter((item) => item.isDirectory() || /\.(cbz|cbr|zip)$/i.test(item.name))
-              .map((item) => ({
-                file: item.name,
-                label: item.name.replace(/\.[^/.]+$/, ""),
-                relativePath: item.name,
-                format: item.isDirectory() ? "folder" : item.name.endsWith(".cbz") ? "cbz" : "zip",
-              }))
-              .sort((a, b) => naturalSort(a.file, b.file));
+            
+            // Check if folder contains direct image pages
+            const directImages = items.filter((f) => f.isFile() && /\.(jpg|jpeg|png|webp|gif)$/i.test(f.name));
+            if (directImages.length > 0) {
+              chapters = [{
+                file: dir.name,
+                label: "Chapter 1",
+                relativePath: ".",
+                format: "folder",
+                pageCount: directImages.length,
+              }];
+            } else {
+              chapters = items
+                .filter((item) => item.isDirectory() || /\.(cbz|cbr|zip)$/i.test(item.name))
+                .map((item) => ({
+                  file: item.name,
+                  label: item.name.replace(/\.[^/.]+$/, ""),
+                  relativePath: item.name,
+                  format: item.isDirectory() ? "folder" : item.name.endsWith(".cbz") ? "cbz" : "zip",
+                }))
+                .sort((a, b) => naturalSort(a.file, b.file));
+            }
           } catch (err) {
             console.warn(`Error scanning manga folder ${dir.name}:`, err.message);
           }
@@ -204,6 +203,26 @@ const server = http.createServer((req, res) => {
             hasLocalPoster,
           };
         });
+
+        // 2. Scan any root-level CBZ/ZIP files
+        const rootMangaFiles = rootEntries.filter((f) => f.isFile() && /\.(cbz|cbr|zip)$/i.test(f.name));
+        for (const file of rootMangaFiles) {
+          const baseName = file.name.replace(/\.[^/.]+$/, "");
+          const slug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          mangaList.push({
+            slug,
+            folderName: baseName,
+            folderPath: path.join(MANGA_PATH, file.name),
+            chapters: [{
+              file: file.name,
+              label: baseName,
+              relativePath: file.name,
+              format: file.name.endsWith(".cbz") ? "cbz" : "zip",
+            }],
+            chapterCount: 1,
+            hasLocalPoster: false,
+          });
+        }
       }
     } catch (err) {
       console.error("Scan error:", err.message);
