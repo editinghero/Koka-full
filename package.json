@@ -4,10 +4,13 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --host 0.0.0.0 --port 3399",
-    "build": "vite build && node scripts/postbuild-pages.js",
-    "build:dev": "vite build --mode development",
-    "preview": "vite preview",
+    "dev": "pnpm --filter @koka/standalone dev",
+    "dev:standalone": "pnpm --filter @koka/standalone dev",
+    "dev:hybrid": "pnpm --filter @koka/hybrid dev",
+    "build": "pnpm --filter @koka/standalone build",
+    "build:all": "pnpm -r build",
+    "build:hybrid": "pnpm --filter @koka/hybrid build",
+    "preview": "pnpm --filter @koka/standalone preview",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
