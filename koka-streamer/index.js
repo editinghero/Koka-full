@@ -476,25 +476,45 @@ function findMangaPath(baseDir, slug, chapter) {
   if (!baseDir || !fs.existsSync(baseDir)) return null;
 
   // 1. Direct path check
-  const directPath = path.join(baseDir, slug, chapter || "");
-  if (fs.existsSync(directPath)) return directPath;
+  if (slug && chapter) {
+    const directPath = path.join(baseDir, slug, chapter);
+    if (fs.existsSync(directPath)) return directPath;
+  }
+  if (slug) {
+    const directSlug = path.join(baseDir, slug);
+    if (fs.existsSync(directSlug)) {
+      if (!chapter || chapter === "Chapter 1" || chapter === "") return directSlug;
+    }
+  }
+  if (chapter) {
+    const directChapter = path.join(baseDir, chapter);
+    if (fs.existsSync(directChapter)) return directChapter;
+  }
 
-  // 2. Direct root archive check
-  const inRoot = path.join(baseDir, chapter || slug);
-  if (fs.existsSync(inRoot)) return inRoot;
-
-  // 3. Scan directory to match manga folder
   try {
     const entries = fs.readdirSync(baseDir, { withFileTypes: true });
-    const targetFolder = entries.find((e) => (
+
+    // Check if root archive matches slug or chapter
+    const rootArchive = entries.find((e) => e.isFile() && (
+      e.name === chapter ||
+      e.name.toLowerCase() === (chapter || "").toLowerCase() ||
       e.name === slug ||
-      e.name.toLowerCase() === slug.toLowerCase() ||
-      e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug.toLowerCase()
+      e.name.toLowerCase() === (slug || "").toLowerCase() ||
+      e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase() ||
+      e.name.replace(/\.[^/.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase()
+    ));
+    if (rootArchive) return path.join(baseDir, rootArchive.name);
+
+    // Find matching series folder
+    const targetFolder = entries.find((e) => e.isDirectory() && (
+      e.name === slug ||
+      e.name.toLowerCase() === (slug || "").toLowerCase() ||
+      e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase()
     ));
 
     if (targetFolder) {
       const folderPath = path.join(baseDir, targetFolder.name);
-      if (!chapter) return folderPath;
+      if (!chapter || chapter === "Chapter 1" || chapter === "") return folderPath;
 
       const inChapter = path.join(folderPath, chapter);
       if (fs.existsSync(inChapter)) return inChapter;
@@ -503,9 +523,14 @@ function findMangaPath(baseDir, slug, chapter) {
       const subMatch = subEntries.find((s) => (
         s.name === chapter ||
         s.name.toLowerCase() === chapter.toLowerCase() ||
-        s.name.replace(/\.[^/.]+$/, "").toLowerCase() === chapter.replace(/\.[^/.]+$/, "").toLowerCase()
+        s.name.replace(/\.[^/.]+$/, "").toLowerCase() === chapter.replace(/\.[^/.]+$/, "").toLowerCase() ||
+        s.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === chapter.toLowerCase().replace(/[^a-z0-9]+/g, "-")
       ));
       if (subMatch) return path.join(folderPath, subMatch.name);
+
+      // If no subfolder/archive matched, but folder has loose images, treat folder itself as the chapter
+      const hasImages = subEntries.some((f) => f.isFile() && IMAGE_EXTENSIONS_REGEX.test(f.name));
+      if (hasImages) return folderPath;
     }
   } catch (err) {
     console.warn("Manga path search error:", err.message);
