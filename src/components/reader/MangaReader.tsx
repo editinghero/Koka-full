@@ -425,13 +425,35 @@ export function MangaReader({
   const saveProgress = useCallback(
     (page: number, total: number) => {
       if (total > 0 && page >= 1) {
+        const isComp = page >= total;
+        try {
+          const rec = {
+            slug,
+            chapterFile,
+            pageNumber: page,
+            totalPages: total,
+            completed: isComp,
+            lastReadAt: new Date().toISOString(),
+          };
+          localStorage.setItem(
+            `koka:read:${slug}:${chapterFile}`,
+            JSON.stringify(rec),
+          );
+          localStorage.setItem(
+            `koka:read:latest:${slug}`,
+            JSON.stringify(rec),
+          );
+        } catch {
+          /* ignore */
+        }
+
         saveReadProgress({
           data: {
             slug,
             chapterFile,
             pageNumber: page,
             totalPages: total,
-            completed: page >= total,
+            completed: isComp,
           },
         }).catch(() => {});
       }

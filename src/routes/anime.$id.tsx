@@ -166,19 +166,74 @@ function AnimeDetail() {
     );
   }, [scanState?.manga, media, mode]);
 
-  const { data: watchRecords, refetch: refetchWatch } = useQuery({
+  const { data: serverWatchRecords, refetch: refetchWatch } = useQuery({
     queryKey: ["watchProgress", localAnime?.slug],
     queryFn: () =>
       localAnime ? getWatchProgress({ data: { slug: localAnime.slug } }) : [],
     enabled: !!localAnime,
   });
 
-  const { data: readRecords, refetch: refetchRead } = useQuery({
+  const { data: serverReadRecords, refetch: refetchRead } = useQuery({
     queryKey: ["readProgress", localManga?.slug],
     queryFn: () =>
       localManga ? getReadProgress({ data: { slug: localManga.slug } }) : [],
     enabled: !!localManga,
   });
+
+  // Merge server records with instant local storage records
+  const watchRecords = useMemo(() => {
+    if (!localAnime) return [];
+    const list = [...(serverWatchRecords ?? [])];
+    if (typeof window !== "undefined") {
+      try {
+        const rawLatest = localStorage.getItem(
+          `koka:watch:latest:${localAnime.slug}`,
+        );
+        if (rawLatest) {
+          const parsed = JSON.parse(rawLatest);
+          const existingIdx = list.findIndex(
+            (w) =>
+              w.season === parsed.season &&
+              w.episodeFile === parsed.episodeFile,
+          );
+          if (existingIdx !== -1) {
+            list[existingIdx] = parsed;
+          } else {
+            list.unshift(parsed);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return list;
+  }, [serverWatchRecords, localAnime]);
+
+  const readRecords = useMemo(() => {
+    if (!localManga) return [];
+    const list = [...(serverReadRecords ?? [])];
+    if (typeof window !== "undefined") {
+      try {
+        const rawLatest = localStorage.getItem(
+          `koka:read:latest:${localManga.slug}`,
+        );
+        if (rawLatest) {
+          const parsed = JSON.parse(rawLatest);
+          const existingIdx = list.findIndex(
+            (r) => r.chapterFile === parsed.chapterFile,
+          );
+          if (existingIdx !== -1) {
+            list[existingIdx] = parsed;
+          } else {
+            list.unshift(parsed);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return list;
+  }, [serverReadRecords, localManga]);
 
   return (
     <div className="animate-in duration-300 fade-in-0 slide-in-from-bottom-3">

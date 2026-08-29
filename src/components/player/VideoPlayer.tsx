@@ -144,6 +144,29 @@ export function VideoPlayer({
   const saveCurrentProgress = useCallback(
     (pos: number, dur: number, completed = false) => {
       if (dur > 0 && pos >= 0) {
+        const isComp = completed || pos / dur > 0.9;
+        try {
+          const rec = {
+            slug,
+            season,
+            episodeFile,
+            positionSeconds: Math.floor(pos),
+            durationSeconds: Math.floor(dur),
+            completed: isComp,
+            lastWatchedAt: new Date().toISOString(),
+          };
+          localStorage.setItem(
+            `koka:watch:${slug}:${season}:${episodeFile}`,
+            JSON.stringify(rec),
+          );
+          localStorage.setItem(
+            `koka:watch:latest:${slug}`,
+            JSON.stringify(rec),
+          );
+        } catch {
+          /* ignore */
+        }
+
         saveWatchProgress({
           data: {
             slug,
@@ -151,7 +174,7 @@ export function VideoPlayer({
             episodeFile,
             positionSeconds: Math.floor(pos),
             durationSeconds: Math.floor(dur),
-            completed,
+            completed: isComp,
           },
         }).catch(() => {});
       }
