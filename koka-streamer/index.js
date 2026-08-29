@@ -331,6 +331,6 @@ const server = http.createServer((req, res) => {
   res.end("Not Found");
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(` Koka Bridge ready on port ${PORT}`);
+server.listen(initialConfig.PORT, "0.0.0.0", () => {
+  console.log(` Koka Bridge ready on port ${initialConfig.PORT}`);
 });
