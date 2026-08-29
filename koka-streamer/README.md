@@ -22,7 +22,7 @@ Runs on any Desktop PC or Android phone (via Termux) to securely stream your loc
    {
      "port": 3399,
      "nodeName": "Main-Desktop-PC",
-     "secret": "B0Vj7IZkA9z84vSupNH3gi65XOGhe2EC",
+     "secret": "sd",
      "animePath": "D:/Media/Anime",
      "mangaPath": "D:/Media/Manga"
    }
@@ -57,7 +57,7 @@ You only need to copy this `koka-streamer` folder to your phone (under 50KB tota
    {
      "port": 3399,
      "nodeName": "Pixel-Phone",
-     "secret": "B0Vj7IZkA9z84vSupNH3gi65XOGhe2EC",
+     "secret": "sd",
      "animePath": "/sdcard/Anime",
      "mangaPath": "/sdcard/Manga"
    }
