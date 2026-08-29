@@ -164,6 +164,8 @@ export type Settings = {
   lightTheme: string;
   /** preset id used while in dark mode */
   darkTheme: string;
+  tunnelUrl?: string;
+  streamSecret?: string;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -174,6 +176,8 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
   lightTheme: "paper",
   darkTheme: "koka",
+  tunnelUrl: "",
+  streamSecret: "",
 };
 
 /** Models available on Google's free tier of the Gemini API. */

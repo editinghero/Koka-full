@@ -30,8 +30,8 @@ export type SettingsRow = {
   light_theme: string;
   dark_theme: string;
   media_mode: string;
-  anime_path?: string;
-  manga_path?: string;
+  tunnel_url?: string;
+  stream_secret?: string;
 };
 
 export type ImportLogRow = {
@@ -51,8 +51,8 @@ export const DEFAULT_SETTINGS_ROW: SettingsRow = {
   light_theme: "paper",
   dark_theme: "koka",
   media_mode: "ANIME",
-  anime_path: "./anime",
-  manga_path: "./manga",
+  tunnel_url: "",
+  stream_secret: "",
 };
 
 export type Repo = {
@@ -175,13 +175,15 @@ function sqliteRepo(): Repo {
         light_theme: row["light_theme"] ? String(row["light_theme"]) : "paper",
         dark_theme: row["dark_theme"] ? String(row["dark_theme"]) : "koka",
         media_mode: row["media_mode"] ? String(row["media_mode"]) : "ANIME",
+        tunnel_url: row["tunnel_url"] ? String(row["tunnel_url"]) : "",
+        stream_secret: row["stream_secret"] ? String(row["stream_secret"]) : "",
       };
     },
     async saveSettings(userId: string, row: SettingsRow): Promise<void> {
       const db = await ensureDbInitialized();
       await db.execute({
-        sql: `INSERT INTO settings (user_id, gemini_key, model, anilist_user, spoiler_free, theme, light_theme, dark_theme, media_mode, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        sql: `INSERT INTO settings (user_id, gemini_key, model, anilist_user, spoiler_free, theme, light_theme, dark_theme, media_mode, tunnel_url, stream_secret, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(user_id) DO UPDATE SET
            gemini_key = excluded.gemini_key,
            model = excluded.model,
@@ -191,6 +193,8 @@ function sqliteRepo(): Repo {
            light_theme = excluded.light_theme,
            dark_theme = excluded.dark_theme,
            media_mode = excluded.media_mode,
+           tunnel_url = excluded.tunnel_url,
+           stream_secret = excluded.stream_secret,
            updated_at = excluded.updated_at`,
         args: [
           userId,
@@ -202,6 +206,8 @@ function sqliteRepo(): Repo {
           row.light_theme,
           row.dark_theme,
           row.media_mode,
+          row.tunnel_url ?? "",
+          row.stream_secret ?? "",
           Date.now(),
         ],
       });
@@ -471,13 +477,15 @@ function d1Repo(d1: D1Database): Repo {
         light_theme: row["light_theme"] ? String(row["light_theme"]) : "paper",
         dark_theme: row["dark_theme"] ? String(row["dark_theme"]) : "koka",
         media_mode: row["media_mode"] ? String(row["media_mode"]) : "ANIME",
+        tunnel_url: row["tunnel_url"] ? String(row["tunnel_url"]) : "",
+        stream_secret: row["stream_secret"] ? String(row["stream_secret"]) : "",
       };
     },
     async saveSettings(userId: string, row: SettingsRow): Promise<void> {
       await d1
         .prepare(
-          `INSERT INTO settings (user_id, gemini_key, model, anilist_user, spoiler_free, theme, light_theme, dark_theme, media_mode, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO settings (user_id, gemini_key, model, anilist_user, spoiler_free, theme, light_theme, dark_theme, media_mode, tunnel_url, stream_secret, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(user_id) DO UPDATE SET
              gemini_key = excluded.gemini_key,
              model = excluded.model,
@@ -487,6 +495,8 @@ function d1Repo(d1: D1Database): Repo {
              light_theme = excluded.light_theme,
              dark_theme = excluded.dark_theme,
              media_mode = excluded.media_mode,
+             tunnel_url = excluded.tunnel_url,
+             stream_secret = excluded.stream_secret,
              updated_at = excluded.updated_at`,
         )
         .bind(
@@ -499,6 +509,8 @@ function d1Repo(d1: D1Database): Repo {
           row.light_theme,
           row.dark_theme,
           row.media_mode,
+          row.tunnel_url ?? "",
+          row.stream_secret ?? "",
           Date.now(),
         )
         .run();

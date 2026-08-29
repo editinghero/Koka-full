@@ -661,8 +661,9 @@ function TagManagerSection() {
 }
 
 function LocalMediaLibrarySection() {
-  const [tunnelUrl, setTunnelUrl] = useState("");
-  const [tunnelSecret, setTunnelSecret] = useState("");
+  const { settings, update } = useSettings();
+  const [tunnelUrl, setTunnelUrl] = useState(settings.tunnelUrl || "");
+  const [tunnelSecret, setTunnelSecret] = useState(settings.streamSecret || "");
   const [showSecret, setShowSecret] = useState(false);
   const [animePath, setAnimePath] = useState("./anime");
   const [mangaPath, setMangaPath] = useState("./manga");
@@ -677,11 +678,14 @@ function LocalMediaLibrarySection() {
   });
 
   useEffect(() => {
+    if (settings.tunnelUrl) setTunnelUrl(settings.tunnelUrl);
+    if (settings.streamSecret) setTunnelSecret(settings.streamSecret);
+
     import("@/lib/tunnel-client").then(({ getStoredTunnelUrl, getStoredTunnelSecret, probeTunnelNode }) => {
-      const u = getStoredTunnelUrl();
-      const s = getStoredTunnelSecret();
-      setTunnelUrl(u);
-      setTunnelSecret(s);
+      const u = settings.tunnelUrl || getStoredTunnelUrl();
+      const s = settings.streamSecret || getStoredTunnelSecret();
+      if (!tunnelUrl && u) setTunnelUrl(u);
+      if (!tunnelSecret && s) setTunnelSecret(s);
       if (u) {
         probeTunnelNode(u, s).then(setNodeStatus);
       }
@@ -691,7 +695,7 @@ function LocalMediaLibrarySection() {
       if (cfg.animePath) setAnimePath(cfg.animePath);
       if (cfg.mangaPath) setMangaPath(cfg.mangaPath);
     });
-  }, []);
+  }, [settings.tunnelUrl, settings.streamSecret]);
 
   const handleTestTunnel = async () => {
     setIsTesting(true);
@@ -699,6 +703,10 @@ function LocalMediaLibrarySection() {
       const { probeTunnelNode, setStoredTunnelUrl, setStoredTunnelSecret } = await import("@/lib/tunnel-client");
       setStoredTunnelUrl(tunnelUrl);
       setStoredTunnelSecret(tunnelSecret);
+      update({
+        tunnelUrl: tunnelUrl.trim().replace(/\/+$/, ""),
+        streamSecret: tunnelSecret.trim(),
+      });
       const res = await probeTunnelNode(tunnelUrl, tunnelSecret);
       setNodeStatus(res);
       if (res.online) {
@@ -719,12 +727,16 @@ function LocalMediaLibrarySection() {
       const { setStoredTunnelUrl, setStoredTunnelSecret, probeTunnelNode } = await import("@/lib/tunnel-client");
       setStoredTunnelUrl(tunnelUrl);
       setStoredTunnelSecret(tunnelSecret);
+      update({
+        tunnelUrl: tunnelUrl.trim().replace(/\/+$/, ""),
+        streamSecret: tunnelSecret.trim(),
+      });
       await updateMediaConfig({
         data: { animePath, mangaPath },
       });
       const res = await probeTunnelNode(tunnelUrl, tunnelSecret);
       setNodeStatus(res);
-      toast.success("Streaming settings and paths saved");
+      toast.success("Streaming settings saved to Cloudflare database");
       refetchScan();
     } catch (err) {
       toast.error("Failed to update settings");

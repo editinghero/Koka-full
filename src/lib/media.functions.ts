@@ -277,6 +277,46 @@ export const getMangaChapterPagesInfo = createServerFn({ method: "GET" })
     return await getMangaChapterPages(data.slug, data.chapterFile);
   });
 
+/** Get all linked local folders from database */
+export const getLocalMediaLinks = createServerFn({ method: "GET" }).handler(
+  async () => {
+    const { getD1 } = await import("@/server/runtime.server");
+    const d1 = getD1();
+    if (d1) {
+      const res = await d1
+        .prepare("SELECT * FROM local_media_links")
+        .all();
+      return (res.results || []).map((r) => ({
+        mediaType: String(r["media_type"]),
+        mediaId: Number(r["media_id"]),
+        folderSlug: String(r["folder_slug"]),
+        folderName: String(r["folder_name"]),
+        folderPath: String(r["folder_path"] || ""),
+        customTitle: r["custom_title"] ? String(r["custom_title"]) : null,
+      }));
+    }
+
+    try {
+      const { ensureDbInitialized } = await import("@/server/db.server");
+      const db = await ensureDbInitialized();
+      const res = await db.execute({
+        sql: "SELECT * FROM local_media_links",
+        args: [],
+      });
+      return res.rows.map((r) => ({
+        mediaType: String(r["media_type"]),
+        mediaId: Number(r["media_id"]),
+        folderSlug: String(r["folder_slug"]),
+        folderName: String(r["folder_name"]),
+        folderPath: String(r["folder_path"] || ""),
+        customTitle: r["custom_title"] ? String(r["custom_title"]) : null,
+      }));
+    } catch {
+      return [];
+    }
+  },
+);
+
 /** Link a local media folder to an AniList series */
 export const linkLocalFolder = createServerFn({ method: "POST" })
   .validator(

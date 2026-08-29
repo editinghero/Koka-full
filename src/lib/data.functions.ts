@@ -41,6 +41,8 @@ export const getBootstrap = createServerFn({ method: "GET" }).handler(
         theme: row.theme === "light" ? "light" : "dark",
         lightTheme: row.light_theme,
         darkTheme: row.dark_theme,
+        tunnelUrl: row.tunnel_url ?? "",
+        streamSecret: row.stream_secret ?? "",
       },
       mode: row.media_mode === "MANGA" ? "MANGA" : "ANIME",
       library,
@@ -65,6 +67,8 @@ export const saveSettings = createServerFn({ method: "POST" })
       light_theme: data.settings.lightTheme,
       dark_theme: data.settings.darkTheme,
       media_mode: data.mode === "MANGA" ? "MANGA" : "ANIME",
+      tunnel_url: data.settings.tunnelUrl ?? "",
+      stream_secret: data.settings.streamSecret ?? "",
     });
     return { ok: true };
   });

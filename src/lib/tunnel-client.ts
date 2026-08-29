@@ -17,11 +17,13 @@ export interface ConnectedNodeInfo {
 }
 
 const DEFAULT_TUNNEL_KEY = "koka:hybrid:tunnel_url";
-const DEFAULT_TUNNEL_SECRET_KEY = "koka:hybrid:tunnel_secret";
+import { getSettings } from "./store";
 
 export function getStoredTunnelUrl(): string {
   if (typeof window === "undefined") return "";
   try {
+    const fromSettings = getSettings()?.tunnelUrl;
+    if (fromSettings) return fromSettings;
     return localStorage.getItem(DEFAULT_TUNNEL_KEY) || "";
   } catch {
     return "";
@@ -40,6 +42,8 @@ export function setStoredTunnelUrl(url: string): void {
 export function getStoredTunnelSecret(): string {
   if (typeof window === "undefined") return "";
   try {
+    const fromSettings = getSettings()?.streamSecret;
+    if (fromSettings) return fromSettings;
     return localStorage.getItem(DEFAULT_TUNNEL_SECRET_KEY) || "";
   } catch {
     return "";
@@ -172,11 +176,47 @@ export async function getActiveMediaScan(): Promise<import("@/server/scanner.ser
           manga?: import("@/server/scanner.server").ScannedManga[];
           timestamp?: number;
         };
+        let rawAnime = data.anime || [];
+        let rawManga = data.manga || [];
+
+        // Attach linked media IDs from database
+        try {
+          const { getLocalMediaLinks } = await import("@/lib/media.functions");
+          const links = await getLocalMediaLinks();
+          const animeLinkMap = new Map<string, number>();
+          const mangaLinkMap = new Map<string, number>();
+          for (const l of links) {
+            if (l.mediaType === "MANGA") {
+              mangaLinkMap.set(l.folderSlug, l.mediaId);
+              mangaLinkMap.set(l.folderName.toLowerCase(), l.mediaId);
+            } else {
+              animeLinkMap.set(l.folderSlug, l.mediaId);
+              animeLinkMap.set(l.folderName.toLowerCase(), l.mediaId);
+            }
+          }
+          rawAnime = rawAnime.map((a) => ({
+            ...a,
+            mediaId:
+              a.mediaId ??
+              animeLinkMap.get(a.slug) ??
+              animeLinkMap.get(a.folderName.toLowerCase()),
+          }));
+          rawManga = rawManga.map((m) => ({
+            ...m,
+            mediaId:
+              m.mediaId ??
+              mangaLinkMap.get(m.slug) ??
+              mangaLinkMap.get(m.folderName.toLowerCase()),
+          }));
+        } catch {
+          /* ignore */
+        }
+
         return {
           isScanning: false,
           lastScannedAt: data.timestamp || Date.now(),
-          anime: data.anime || [],
-          manga: data.manga || [],
+          anime: rawAnime,
+          manga: rawManga,
         };
       }
     } catch (err) {

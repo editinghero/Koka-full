@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useLibrary } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { linkLocalFolder } from "@/lib/media.functions";
 import { searchAnime } from "@/lib/anilist";
@@ -42,6 +43,7 @@ export function UnlinkedFolderModal({
   onLinkedSuccess,
   onDirectPlay,
 }: UnlinkedFolderModalProps) {
+  const { library, patch } = useLibrary();
   const [query, setQuery] = useState(folder ? folder.folderName : "");
   const [results, setResults] = useState<AnimeMedia[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -84,6 +86,10 @@ export function UnlinkedFolderModal({
           customTitle: target.title,
         },
       });
+      const exists = library.some((e) => e.media.id === target.id);
+      if (!exists) {
+        patch(target, { status: "CURRENT", progress: 0 });
+      }
       toast.success(`Linked "${folder.folderName}" to "${target.title}"`);
       onLinkedSuccess();
       onOpenChange(false);
