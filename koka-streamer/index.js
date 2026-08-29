@@ -144,6 +144,7 @@ const server = http.createServer((req, res) => {
                     label: f.name.replace(/\.[^/.]+$/, ""),
                     season: s.name,
                     relativePath: path.join(s.name, f.name).replace(/\\/g, "/"),
+                    subtitles: [],
                   }))
                   .sort((a, b) => naturalSort(a.file, b.file));
                 return { name: s.name, episodes: sFiles };
@@ -156,6 +157,7 @@ const server = http.createServer((req, res) => {
                   label: f.name.replace(/\.[^/.]+$/, ""),
                   season: "Season 1",
                   relativePath: f.name,
+                  subtitles: [],
                 }))
                 .sort((a, b) => naturalSort(a.file, b.file));
               if (rootFiles.length > 0) {
@@ -335,14 +337,32 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    const possibleFiles = ["poster.jpg", "poster.png", "cover.jpg", "cover.png", "poster.webp"];
-    for (const name of possibleFiles) {
-      const p = path.join(baseDir, slug, name);
-      if (isSafePath(baseDir, p) && fs.existsSync(p)) {
-        const ext = path.extname(p).toLowerCase();
-        res.writeHead(200, { "Content-Type": MIME_TYPES[ext] || "image/jpeg" });
-        fs.createReadStream(p).pipe(res);
-        return;
+    const possibleFiles = ["poster.jpg", "poster.png", "cover.jpg", "cover.png", "poster.webp", "folder.jpg"];
+    
+    // Check direct slug or scan directory for matching folder
+    let targetDir = path.join(baseDir, slug);
+    if (!fs.existsSync(targetDir) && fs.existsSync(baseDir)) {
+      try {
+        const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+        const match = entries.find((e) => e.isDirectory() && (
+          e.name === slug ||
+          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug
+        ));
+        if (match) targetDir = path.join(baseDir, match.name);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (fs.existsSync(targetDir)) {
+      for (const name of possibleFiles) {
+        const p = path.join(targetDir, name);
+        if (isSafePath(baseDir, p) && fs.existsSync(p)) {
+          const ext = path.extname(p).toLowerCase();
+          res.writeHead(200, { "Content-Type": MIME_TYPES[ext] || "image/jpeg" });
+          fs.createReadStream(p).pipe(res);
+          return;
+        }
       }
     }
 

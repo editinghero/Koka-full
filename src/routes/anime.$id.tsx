@@ -523,13 +523,13 @@ function AnimeDetail() {
 
             {/* Seasons & Episodes Grid */}
             <div className="space-y-4">
-              {localAnime.seasons.map((s) => (
+              {(localAnime.seasons ?? []).map((s) => (
                 <div key={s.name} className="space-y-2">
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    {s.name} ({s.episodes.length} files)
+                    {s.name} ({s.episodes?.length ?? 0} files)
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                    {s.episodes.map((ep) => {
+                    {(s.episodes ?? []).map((ep) => {
                       const watch = watchRecords?.find(
                         (w) => w.season === s.name && w.episodeFile === ep.file,
                       );
@@ -567,7 +567,7 @@ function AnimeDetail() {
 
                           <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
                             <span className="truncate">{ep.file}</span>
-                            {ep.subtitles.length > 0 && (
+                            {(ep.subtitles?.length ?? 0) > 0 && (
                               <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-muted">
                                 CC
                               </span>
