@@ -120,10 +120,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         },
         { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
         { rel: "manifest", href: "/manifest.webmanifest" },
+        { rel: "dns-prefetch", href: "https://fonts.googleapis.com" },
+        { rel: "dns-prefetch", href: "https://fonts.gstatic.com" },
+        { rel: "dns-prefetch", href: "https://s4.anilist.co" },
+        { rel: "dns-prefetch", href: "https://media.kitsu.app" },
         { rel: "preconnect", href: "https://fonts.googleapis.com" },
         {
           rel: "preconnect",
           href: "https://fonts.gstatic.com",
+          crossOrigin: "anonymous",
+        },
+        {
+          rel: "preconnect",
+          href: "https://s4.anilist.co",
           crossOrigin: "anonymous",
         },
         {
