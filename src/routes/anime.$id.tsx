@@ -21,11 +21,8 @@ import { NoteEditor } from "@/components/NoteEditor";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { MangaReader } from "@/components/reader/MangaReader";
 import { LocalMediaLinkModal } from "@/components/LocalMediaLinkModal";
-import {
-  getLibraryScanStatus,
-  getWatchProgress,
-  getReadProgress,
-} from "@/lib/media.functions";
+import { getWatchProgress, getReadProgress } from "@/lib/media.functions";
+import { getActiveMediaScan } from "@/lib/tunnel-client";
 import type { ScannedAnime, ScannedManga } from "@/server/scanner.server";
 import { fetchByIds } from "@/lib/anilist";
 import { useLibrary, useMediaMode, useNotes } from "@/lib/store";
@@ -119,7 +116,7 @@ function AnimeDetail() {
 
   const { data: scanState, refetch: refetchScan } = useQuery({
     queryKey: ["localMediaScan"],
-    queryFn: () => getLibraryScanStatus(),
+    queryFn: () => getActiveMediaScan(),
     staleTime: 1000 * 30,
   });
 

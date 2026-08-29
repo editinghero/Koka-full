@@ -278,15 +278,20 @@ export const getMangaChapterPagesInfo = createServerFn({ method: "GET" })
   });
 
 /** Get all linked local folders from database */
-export const getLocalMediaLinks = createServerFn({ method: "GET" }).handler(
-  async () => {
+export const getLocalMediaLinks = createServerFn({ method: "GET" })
+  .validator((data?: { deviceId?: string }) => data)
+  .handler(async ({ data }) => {
+    const targetDevice = data?.deviceId?.trim();
     const { getD1 } = await import("@/server/runtime.server");
     const d1 = getD1();
     if (d1) {
-      const res = await d1
-        .prepare("SELECT * FROM local_media_links")
-        .all();
+      const query = targetDevice
+        ? "SELECT * FROM local_media_links WHERE device_id = ?"
+        : "SELECT * FROM local_media_links";
+      const stmt = targetDevice ? d1.prepare(query).bind(targetDevice) : d1.prepare(query);
+      const res = await stmt.all();
       return (res.results || []).map((r) => ({
+        deviceId: String(r["device_id"] || "default"),
         mediaType: String(r["media_type"]),
         mediaId: Number(r["media_id"]),
         folderSlug: String(r["folder_slug"]),
@@ -299,11 +304,15 @@ export const getLocalMediaLinks = createServerFn({ method: "GET" }).handler(
     try {
       const { ensureDbInitialized } = await import("@/server/db.server");
       const db = await ensureDbInitialized();
+      const query = targetDevice
+        ? "SELECT * FROM local_media_links WHERE device_id = ?"
+        : "SELECT * FROM local_media_links";
       const res = await db.execute({
-        sql: "SELECT * FROM local_media_links",
-        args: [],
+        sql: query,
+        args: targetDevice ? [targetDevice] : [],
       });
       return res.rows.map((r) => ({
+        deviceId: String(r["device_id"] || "default"),
         mediaType: String(r["media_type"]),
         mediaId: Number(r["media_id"]),
         folderSlug: String(r["folder_slug"]),
@@ -314,13 +323,13 @@ export const getLocalMediaLinks = createServerFn({ method: "GET" }).handler(
     } catch {
       return [];
     }
-  },
-);
+  });
 
 /** Link a local media folder to an AniList series */
 export const linkLocalFolder = createServerFn({ method: "POST" })
   .validator(
     (data: {
+      deviceId?: string;
       mediaType: MediaType;
       mediaId: number;
       folderSlug: string;
@@ -331,14 +340,16 @@ export const linkLocalFolder = createServerFn({ method: "POST" })
     }) => data,
   )
   .handler(async ({ data }) => {
+    const deviceId = data.deviceId?.trim() || "default";
     const { getD1 } = await import("@/server/runtime.server");
     const d1 = getD1();
     if (d1) {
       await d1
         .prepare(
-          `INSERT INTO local_media_links (media_type, media_id, folder_slug, folder_name, folder_path, custom_title, linked_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO local_media_links (device_id, media_type, media_id, folder_slug, folder_name, folder_path, custom_title, linked_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(media_type, media_id) DO UPDATE SET
+             device_id = excluded.device_id,
              folder_slug = excluded.folder_slug,
              folder_name = excluded.folder_name,
              folder_path = excluded.folder_path,
@@ -346,6 +357,7 @@ export const linkLocalFolder = createServerFn({ method: "POST" })
              linked_at = excluded.linked_at`,
         )
         .bind(
+          deviceId,
           data.mediaType,
           data.mediaId,
           data.folderSlug,
@@ -362,15 +374,17 @@ export const linkLocalFolder = createServerFn({ method: "POST" })
       const { ensureDbInitialized } = await import("@/server/db.server");
       const db = await ensureDbInitialized();
       await db.execute({
-        sql: `INSERT INTO local_media_links (media_type, media_id, folder_slug, folder_name, folder_path, custom_title, linked_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+        sql: `INSERT INTO local_media_links (device_id, media_type, media_id, folder_slug, folder_name, folder_path, custom_title, linked_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(media_type, media_id) DO UPDATE SET
+           device_id = excluded.device_id,
            folder_slug = excluded.folder_slug,
            folder_name = excluded.folder_name,
            folder_path = excluded.folder_path,
            custom_title = excluded.custom_title,
            linked_at = excluded.linked_at`,
         args: [
+          deviceId,
           data.mediaType,
           data.mediaId,
           data.folderSlug,

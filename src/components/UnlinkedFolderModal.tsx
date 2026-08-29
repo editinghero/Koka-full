@@ -78,6 +78,7 @@ export function UnlinkedFolderModal({
     try {
       await linkLocalFolder({
         data: {
+          deviceId: (folder as { deviceId?: string }).deviceId || "pc",
           mediaType,
           mediaId: target.id,
           folderSlug: folder.slug,

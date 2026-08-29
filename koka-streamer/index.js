@@ -13,30 +13,27 @@ import { fileURLToPath } from "node:url";
 
 // Load configuration from config.json or environment variables
 function getFreshConfig() {
-  let cfg = {
-    port: 3399,
-    nodeName: `${os.hostname()} (${os.platform()})`,
-    secret: "",
-    animePath: "./anime",
-    mangaPath: "./manga",
-  };
-
   const configPath = path.resolve(process.cwd(), "config.json");
+  let cfg = {};
+
   if (fs.existsSync(configPath)) {
     try {
       const raw = fs.readFileSync(configPath, "utf-8");
-      cfg = { ...cfg, ...JSON.parse(raw) };
+      cfg = JSON.parse(raw);
     } catch (err) {
       console.warn("Could not parse config.json, using defaults:", err.message);
     }
   }
 
+  const defaultId = os.hostname().toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+
   return {
-    PORT: parseInt(process.env.PORT || String(cfg.port), 10),
-    NODE_NAME: process.env.KOKA_NODE_NAME || cfg.nodeName,
-    STREAM_SECRET: process.env.KOKA_STREAM_SECRET || cfg.secret,
-    ANIME_PATH: path.resolve(process.cwd(), process.env.ANIME_PATH || cfg.animePath),
-    MANGA_PATH: path.resolve(process.cwd(), process.env.MANGA_PATH || cfg.mangaPath),
+    PORT: parseInt(process.env.PORT || String(cfg.port || 3399), 10),
+    DEVICE_ID: (process.env.KOKA_DEVICE_ID || cfg.deviceId || defaultId).trim(),
+    NODE_NAME: process.env.KOKA_NODE_NAME || cfg.nodeName || `${os.hostname()} (${os.platform()})`,
+    STREAM_SECRET: process.env.KOKA_STREAM_SECRET || cfg.secret || "",
+    ANIME_PATH: path.resolve(process.cwd(), process.env.ANIME_PATH || cfg.animePath || "./anime"),
+    MANGA_PATH: path.resolve(process.cwd(), process.env.MANGA_PATH || cfg.mangaPath || "./manga"),
     NODE_TYPE: os.platform() === "android" || process.env.PREFIX?.includes("termux") ? "mobile" : "desktop",
   };
 }
@@ -68,6 +65,7 @@ function naturalSort(a, b) {
 const initialConfig = getFreshConfig();
 console.log("=========================================");
 console.log(" Koka Streaming Bridge (Standalone)");
+console.log(` Device ID : ${initialConfig.DEVICE_ID}`);
 console.log(` Node Name : ${initialConfig.NODE_NAME}`);
 console.log(` Node Type : ${initialConfig.NODE_TYPE}`);
 console.log(` Anime Path: ${initialConfig.ANIME_PATH}`);
@@ -77,7 +75,7 @@ console.log("=========================================");
 
 const server = http.createServer((req, res) => {
   const currentConfig = getFreshConfig();
-  const { PORT, NODE_NAME, STREAM_SECRET, ANIME_PATH, MANGA_PATH, NODE_TYPE } = currentConfig;
+  const { PORT, DEVICE_ID, NODE_NAME, STREAM_SECRET, ANIME_PATH, MANGA_PATH, NODE_TYPE } = currentConfig;
 
   // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -99,6 +97,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       status: "ok",
+      deviceId: DEVICE_ID,
       nodeName: NODE_NAME,
       nodeType: NODE_TYPE,
       authenticated: true,
@@ -255,6 +254,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       online: true,
+      deviceId: DEVICE_ID,
       nodeName: NODE_NAME,
       nodeType: NODE_TYPE,
       anime: animeList,

@@ -5,6 +5,7 @@
 
 export interface ConnectedNodeInfo {
   online: boolean;
+  deviceId?: string;
   nodeName: string;
   nodeType: "desktop" | "mobile" | "server" | "unknown";
   endpoint: string;
@@ -122,9 +123,10 @@ export async function probeTunnelNode(
       };
     }
 
-    const data = await res.json() as {
+    const data = (await res.json()) as {
       anime?: unknown[];
       manga?: unknown[];
+      deviceId?: string;
       nodeName?: string;
       nodeType?: "desktop" | "mobile" | "server";
     };
@@ -134,7 +136,12 @@ export async function probeTunnelNode(
 
     return {
       online: true,
-      nodeName: data?.nodeName || (cleanUrl.includes("localhost") || cleanUrl.includes("127.0.0.1") ? "Local Device" : "Remote Tunnel Node"),
+      deviceId: data?.deviceId || "pc",
+      nodeName:
+        data?.nodeName ||
+        (cleanUrl.includes("localhost") || cleanUrl.includes("127.0.0.1")
+          ? "Local Device"
+          : "Remote Tunnel Node"),
       nodeType: data?.nodeType || "desktop",
       endpoint: cleanUrl,
       animeCount,
@@ -176,13 +183,14 @@ export async function getActiveMediaScan(): Promise<import("@/server/scanner.ser
           manga?: import("@/server/scanner.server").ScannedManga[];
           timestamp?: number;
         };
-        let rawAnime = data.anime || [];
-        let rawManga = data.manga || [];
+        const nodeDeviceId = (data as { deviceId?: string })?.deviceId || "pc";
+        let rawAnime = (data.anime || []).map((a) => ({ ...a, deviceId: nodeDeviceId }));
+        let rawManga = (data.manga || []).map((m) => ({ ...m, deviceId: nodeDeviceId }));
 
-        // Attach linked media IDs from database
+        // Attach linked media IDs from database for this specific device
         try {
           const { getLocalMediaLinks } = await import("@/lib/media.functions");
-          const links = await getLocalMediaLinks();
+          const links = await getLocalMediaLinks({ data: { deviceId: nodeDeviceId } });
           const animeLinkMap = new Map<string, number>();
           const mangaLinkMap = new Map<string, number>();
           for (const l of links) {

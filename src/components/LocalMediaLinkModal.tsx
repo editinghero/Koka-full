@@ -59,6 +59,7 @@ export function LocalMediaLinkModal({
     try {
       await linkLocalFolder({
         data: {
+          deviceId: (folder as { deviceId?: string }).deviceId || "pc",
           mediaType,
           mediaId: media.id,
           folderSlug: folder.slug,
