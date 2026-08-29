@@ -192,7 +192,7 @@
 }
 
 @utility glass-header {
-  background-color: color-mix(in srgb, var(--color-background) 75%, transparent);
+  background-color: color-mix(in srgb, var(--background, var(--color-background, #090a0f)) 75%, transparent);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   backdrop-filter: blur(28px) saturate(180%);
   transform: translateZ(0);
@@ -200,21 +200,21 @@
 }
 
 @utility glass-card {
-  background-color: color-mix(in srgb, var(--color-card) 75%, transparent);
+  background-color: color-mix(in srgb, var(--card, var(--color-card, #11131a)) 75%, transparent);
   -webkit-backdrop-filter: blur(32px) saturate(180%);
   backdrop-filter: blur(32px) saturate(180%);
   transform: translateZ(0);
 }
 
 @utility glass-popover {
-  background-color: color-mix(in srgb, var(--color-popover) 75%, transparent);
+  background-color: color-mix(in srgb, var(--popover, var(--color-popover, #11131a)) 75%, transparent);
   -webkit-backdrop-filter: blur(32px) saturate(180%);
   backdrop-filter: blur(32px) saturate(180%);
   transform: translateZ(0);
 }
 
 @utility glass-floating {
-  background-color: color-mix(in srgb, var(--color-background) 75%, transparent);
+  background-color: color-mix(in srgb, var(--background, var(--color-background, #090a0f)) 75%, transparent);
   -webkit-backdrop-filter: blur(36px) saturate(190%);
   backdrop-filter: blur(36px) saturate(190%);
   transform: translateZ(0);
@@ -222,24 +222,54 @@
 }
 
 @utility glass-bottom-bar {
-  background-color: color-mix(in srgb, var(--color-background) 75%, transparent);
+  background-color: color-mix(in srgb, var(--background, var(--color-background, #090a0f)) 75%, transparent);
   -webkit-backdrop-filter: blur(36px) saturate(190%);
   backdrop-filter: blur(36px) saturate(190%);
   transform: translateZ(0);
   will-change: transform, backdrop-filter;
 }
 
+.glass-header {
+  background-color: color-mix(in srgb, var(--background, var(--color-background, #090a0f)) 75%, transparent) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+}
+
+.glass-card {
+  background-color: color-mix(in srgb, var(--card, var(--color-card, #11131a)) 75%, transparent) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
+  backdrop-filter: blur(32px) saturate(180%) !important;
+}
+
+.glass-popover {
+  background-color: color-mix(in srgb, var(--popover, var(--color-popover, #11131a)) 75%, transparent) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
+  backdrop-filter: blur(32px) saturate(180%) !important;
+}
+
+.glass-floating {
+  background-color: color-mix(in srgb, var(--background, var(--color-background, #090a0f)) 75%, transparent) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(190%) !important;
+  backdrop-filter: blur(36px) saturate(190%) !important;
+}
+
+.glass-bottom-bar {
+  background-color: color-mix(in srgb, var(--background, var(--color-background, #090a0f)) 75%, transparent) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(190%) !important;
+  backdrop-filter: blur(36px) saturate(190%) !important;
+}
+
 @supports not (backdrop-filter: blur(1px)) {
   .glass-header,
   .glass-floating,
   .glass-bottom-bar {
-    background-color: var(--color-background);
+    background-color: var(--background, var(--color-background));
   }
   .glass-card {
-    background-color: var(--color-card);
+    background-color: var(--card, var(--color-card));
   }
   .glass-popover {
-    background-color: var(--color-popover);
+    background-color: var(--popover, var(--color-popover));
   }
 }
 

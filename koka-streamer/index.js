@@ -126,6 +126,7 @@ const server = http.createServer((req, res) => {
 
   const parsedUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const pathname = parsedUrl.pathname;
+  console.log(`[REQ] ${req.method} ${pathname} ${parsedUrl.search}`);
 
   // 1. Health check endpoint
   if (pathname === "/api/health" || pathname === "/health") {
@@ -146,6 +147,7 @@ const server = http.createServer((req, res) => {
     const headerSecret = req.headers["x-koka-stream-secret"];
     const querySecret = parsedUrl.searchParams.get("secret");
     if (headerSecret !== STREAM_SECRET && querySecret !== STREAM_SECRET) {
+      console.warn(`[AUTH FAILED] Secret mismatch on ${pathname}. Provided query: "${querySecret}", Expected: "${STREAM_SECRET}"`);
       res.writeHead(401, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Unauthorized: Invalid or missing X-Koka-Stream-Secret key." }));
       return;
