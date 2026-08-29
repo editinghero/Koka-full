@@ -141,16 +141,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" className="dark">
       <head>
         <HeadContent />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m='dark',p='koka',r=localStorage.getItem('koka:cache');if(r){var o=JSON.parse(r);if(o&&o.settings){m=o.settings.theme||'dark';p=(m==='dark'?o.settings.darkTheme:o.settings.lightTheme)||(m==='dark'?'koka':'paper');}}else{m=localStorage.getItem('koka:theme:mode')||'dark';p=localStorage.getItem('koka:theme:preset')||(m==='dark'?'koka':'paper');}if(m==='dark'){document.documentElement.classList.add('dark');}else{document.documentElement.classList.remove('dark');}document.documentElement.dataset.theme=p;}catch(e){}})();`,
-          }}
-        />
       </head>
-      <body suppressHydrationWarning>
+      <body>
         {children}
         <Scripts />
       </body>

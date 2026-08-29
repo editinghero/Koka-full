@@ -18,7 +18,7 @@ import {
 import { AnimeCard, Cover, countdown } from "@/components/AnimeCard";
 import { PageHeader } from "@/components/AppShell";
 import { useLibrary, useMediaMode } from "@/lib/store";
-import { getActiveMediaScan } from "@/lib/tunnel-client";
+import { getActiveMediaScan, buildStreamUrl } from "@/lib/tunnel-client";
 import { UnlinkedFolderModal } from "@/components/UnlinkedFolderModal";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { MangaReader } from "@/components/reader/MangaReader";
@@ -667,7 +667,10 @@ function LibraryPage() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                 {filteredUnlinked.map((folder) => {
                   const posterUrl = folder.hasLocalPoster
-                    ? `/api/media/poster?slug=${encodeURIComponent(folder.slug)}&type=${mode.toLowerCase()}`
+                    ? buildStreamUrl("/api/media/poster", {
+                        slug: folder.slug,
+                        type: mode.toLowerCase(),
+                      })
                     : null;
                   const count =
                     mode === "MANGA"
