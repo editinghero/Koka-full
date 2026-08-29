@@ -1,0 +1,10 @@
+{
+  "name": "koka-streamer",
+  "version": "1.0.0",
+  "description": "Ultra-lightweight local streaming bridge for Koka (PC & Android Termux)",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  }
+}
