@@ -276,9 +276,11 @@ function LibraryPage() {
   >(null);
 
   // Direct player/reader trigger for unlinked items
-  const [directPlayAnime, setDirectPlayAnime] = useState<ScannedAnime | null>(
-    null,
-  );
+  const [directPlayAnime, setDirectPlayAnime] = useState<{
+    anime: ScannedAnime;
+    season: string;
+    episodeFile: string;
+  } | null>(null);
   const [directReadManga, setDirectReadManga] = useState<{
     manga: ScannedManga;
     chapterFile: string;
@@ -718,32 +720,49 @@ function LibraryPage() {
         onLinkedSuccess={() => {
           refetchScan();
         }}
-        onDirectPlay={(folder) => {
+        onDirectPlay={(folder, seasonName, episodeFile) => {
           if (mode === "MANGA") {
             const manga = folder as ScannedManga;
-            if (manga.chapters.length > 0 && manga.chapters[0]) {
-              setDirectReadManga({
-                manga,
-                chapterFile: manga.chapters[0].file,
-              });
-            }
+            setDirectReadManga({
+              manga,
+              chapterFile: episodeFile || manga.chapters[0]?.file || "",
+            });
           } else {
             const anime = folder as ScannedAnime;
-            setDirectPlayAnime(anime);
+            const targetSeason =
+              seasonName || anime.seasons[0]?.name || "Season 1";
+            const targetEpisode =
+              episodeFile ||
+              anime.seasons.find((s) => s.name === targetSeason)?.episodes[0]
+                ?.file ||
+              "";
+            setDirectPlayAnime({
+              anime,
+              season: targetSeason,
+              episodeFile: targetEpisode,
+            });
           }
         }}
       />
 
       {/* Direct Video Player Overlay for Unlinked Anime */}
-      {directPlayAnime && directPlayAnime.seasons.length > 0 && (
+      {directPlayAnime && directPlayAnime.anime.seasons.length > 0 && (
         <VideoPlayer
-          slug={directPlayAnime.slug}
-          title={directPlayAnime.folderName}
-          season={directPlayAnime.seasons[0]?.name ?? "Season 1"}
-          episodeFile={directPlayAnime.seasons[0]?.episodes[0]?.file ?? ""}
-          seasons={directPlayAnime.seasons}
+          slug={directPlayAnime.anime.slug}
+          title={directPlayAnime.anime.folderName}
+          season={directPlayAnime.season}
+          episodeFile={directPlayAnime.episodeFile}
+          seasons={directPlayAnime.anime.seasons}
           onEpisodeChange={(sName, epFile) => {
-            // handle episode switch
+            setDirectPlayAnime((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    season: sName,
+                    episodeFile: epFile,
+                  }
+                : null,
+            );
           }}
           onClose={() => setDirectPlayAnime(null)}
         />
