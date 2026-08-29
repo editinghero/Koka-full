@@ -356,15 +356,15 @@ export function NotificationsDropdown() {
 
       {isOpen ? (
         <>
-          {/* Backdrop overlay for closing */}
+          {/* Backdrop overlay with blur */}
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-[125] bg-black/25 backdrop-blur-[2px] animate-in fade-in-0 duration-150"
             onClick={() => setIsOpen(false)}
           />
 
-          {/* Centered responsive popup on mobile, right-aligned dropdown on desktop */}
-          <div className="fixed inset-x-4 top-16 z-50 mx-auto w-auto max-w-sm rounded-2xl border border-border/80 glass-popover p-4 shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-w-none">
-            <div className="flex items-center justify-between pb-3 border-b border-border/80">
+          {/* Frosted Glass Notification Panel matching Settings menu */}
+          <div className="fixed inset-x-4 top-16 z-[130] mx-auto w-auto max-w-sm max-h-[85vh] overflow-y-auto sm:inset-auto sm:right-8 sm:top-16 sm:w-96 rounded-2xl border border-border/80 glass-popover p-4 shadow-2xl flex flex-col gap-3 animate-in fade-in-0 zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2.5 border-b border-border/80">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-primary" />
                 <h3 className="font-display text-sm font-semibold">
