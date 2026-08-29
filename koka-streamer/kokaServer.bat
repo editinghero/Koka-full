@@ -1,6 +1,6 @@
 @echo off
 title Koka Streamer Bridge
-cd /d "%~dp0"
+cd /d "E:\Web\devProjects\Koka-full\koka-streamer"
 
 echo ===================================================
 echo   Starting Koka Media Streamer Bridge...

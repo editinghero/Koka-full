@@ -1,4 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   Play,
   Pause,
@@ -107,6 +112,32 @@ export function VideoPlayer({
       setActiveSubtitle(null);
     }
   }, [season, episodeFile, seasons]);
+
+  // Activate subtitle track via the TextTrack API whenever activeSubtitle changes.
+  // The `default` attribute alone is unreliable when the src changes dynamically.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const applyTrack = () => {
+      const tracks = Array.from(video.textTracks);
+      tracks.forEach((track) => {
+        track.mode = "disabled";
+      });
+      if (activeSubtitle !== null && tracks.length > 0) {
+        // Find the track whose label matches or just pick the first enabled one
+        const target = tracks[0];
+        if (target) target.mode = "showing";
+      }
+    };
+
+    // Apply immediately and also after the track loads
+    applyTrack();
+    video.addEventListener("loadedmetadata", applyTrack);
+    return () => {
+      video.removeEventListener("loadedmetadata", applyTrack);
+    };
+  }, [activeSubtitle]);
 
   // Set initial position once metadata is loaded
   const handleLoadedMetadata = () => {
@@ -262,7 +293,10 @@ export function VideoPlayer({
     }
   };
 
-  // Touch / Mobile double tap gesture handler
+  // Touch / Mobile gesture handler
+  // Single tap  -> toggle controls visibility
+  // Double tap left/right -> seek -10/+10s
+  // Double tap center -> toggle fullscreen
   const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
     const now = Date.now();
     const touch = e.changedTouches[0];
@@ -277,15 +311,12 @@ export function VideoPlayer({
     if (isDoubleTap) {
       const width = rect.width;
       if (touchX < width * 0.35) {
-        // Double tap left: Seek backward 10s
         seekRelative(-10);
         setSeekFeedback({ side: "left", amount: 10 });
       } else if (touchX > width * 0.65) {
-        // Double tap right: Seek forward 10s
         seekRelative(10);
         setSeekFeedback({ side: "right", amount: 10 });
       } else {
-        // Double tap center: Toggle fullscreen
         toggleFullscreen();
       }
 
@@ -293,8 +324,10 @@ export function VideoPlayer({
       seekFeedbackTimer.current = setTimeout(() => setSeekFeedback(null), 800);
       lastTapRef.current = { time: 0, x: 0 };
     } else {
+      // Single tap: just toggle controls visibility
       lastTapRef.current = { time: now, x: touchX };
-      pingControls();
+      setControlsVisible((prev) => !prev);
+      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     }
   };
 
@@ -362,6 +395,19 @@ export function VideoPlayer({
   );
   const epLabel = currentEpObj?.label || episodeFile;
 
+  // Subtitle src URL (only for vtt — browsers can't render .srt/.ass natively)
+  const subtitleSrcUrl =
+    activeSubtitle !== null
+      ? buildStreamUrl("/api/stream/subtitle", {
+          slug,
+          file: activeSubtitle,
+        })
+      : null;
+
+  const isVttSubtitle =
+    activeSubtitle !== null &&
+    activeSubtitle.toLowerCase().endsWith(".vtt");
+
   return (
     <div
       ref={containerRef}
@@ -369,12 +415,15 @@ export function VideoPlayer({
       onTouchEnd={handleTouchEnd}
       className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black select-none overflow-hidden"
     >
-      {/* Video Element */}
+      {/* Video Element — click only toggles controls, not play/pause */}
       <video
         ref={videoRef}
         src={videoSrc}
         className="w-full h-full object-contain cursor-pointer"
-        onClick={togglePlay}
+        onClick={() => {
+          setControlsVisible((prev) => !prev);
+          if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+        }}
         onTimeUpdate={() => {
           if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
         }}
@@ -390,15 +439,15 @@ export function VideoPlayer({
           }
         }}
         playsInline
+        crossOrigin="anonymous"
       >
-        {activeSubtitle && (
+        {/* Only render <track> for .vtt; .srt/.ass need conversion */}
+        {isVttSubtitle && subtitleSrcUrl && (
           <track
             key={activeSubtitle}
-            src={buildStreamUrl("/api/stream/subtitle", {
-              slug,
-              file: activeSubtitle,
-            })}
+            src={subtitleSrcUrl}
             kind="subtitles"
+            srcLang="en"
             label="Subtitles"
             default
           />
@@ -427,15 +476,17 @@ export function VideoPlayer({
         </div>
       )}
 
-      {/* Top Controls Overlay */}
+      {/* Top Controls Overlay — frosted glass gradient */}
       <div
         className={cn(
-          "absolute top-0 inset-x-0 bg-gradient-to-b from-black/90 via-black/40 to-transparent p-4 md:p-6 flex items-center justify-between transition-opacity duration-300 z-20",
+          "absolute top-0 inset-x-0 p-4 md:p-6 flex items-center justify-between transition-opacity duration-300 z-20",
+          "bg-gradient-to-b from-black/80 via-black/30 to-transparent",
+          "[backdrop-filter:blur(0px)]", // top bar uses gradient only, no blur needed
           controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none",
         )}
       >
         <div className="flex flex-col">
-          <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+          <span className="text-xs uppercase tracking-wider text-white/60 font-semibold">
             {season} &bull; {epLabel}
           </span>
           <h2 className="text-base md:text-lg font-bold text-white tracking-tight truncate max-w-md md:max-w-xl">
@@ -472,17 +523,25 @@ export function VideoPlayer({
         </div>
       </div>
 
-      {/* Episode Switcher Drawer */}
+      {/* Episode Switcher Drawer — frosted glass */}
       {showEpisodeMenu && (
-        <div className="absolute right-4 top-20 bottom-24 w-80 max-w-[calc(100vw-2rem)] bg-card/92 backdrop-blur-3xl border border-border/80 rounded-2xl shadow-2xl p-4 overflow-y-auto z-30 flex flex-col gap-4 animate-in slide-in-from-right-4 duration-200">
-          <div className="flex items-center justify-between border-b border-border/80 pb-2">
-            <h3 className="font-display font-semibold text-sm text-foreground">
+        <div
+          className="absolute right-4 top-20 bottom-24 w-80 max-w-[calc(100vw-2rem)] rounded-2xl shadow-2xl p-4 overflow-y-auto z-30 flex flex-col gap-4 animate-in slide-in-from-right-4 duration-200"
+          style={{
+            background: "rgba(10,10,20,0.72)",
+            backdropFilter: "blur(36px) saturate(180%)",
+            WebkitBackdropFilter: "blur(36px) saturate(180%)",
+            border: "1px solid rgba(255,255,255,0.10)",
+          }}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 pb-2">
+            <h3 className="font-display font-semibold text-sm text-white">
               Select Episode
             </h3>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 rounded-full"
+              className="h-7 w-7 rounded-full text-white hover:bg-white/10"
               onClick={() => setShowEpisodeMenu(false)}
             >
               <X className="w-4 h-4" />
@@ -492,7 +551,7 @@ export function VideoPlayer({
           <div className="space-y-4">
             {seasons.map((s) => (
               <div key={s.name} className="space-y-1.5">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                <span className="text-xs font-semibold text-white/50 uppercase tracking-wider px-1">
                   {s.name}
                 </span>
                 <div className="grid gap-1">
@@ -510,7 +569,7 @@ export function VideoPlayer({
                           "w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors",
                           isSelected
                             ? "bg-primary text-primary-foreground font-semibold"
-                            : "hover:bg-accent text-foreground",
+                            : "hover:bg-white/10 text-white/80 hover:text-white",
                         )}
                       >
                         <span className="truncate">{ep.label}</span>
@@ -527,10 +586,18 @@ export function VideoPlayer({
         </div>
       )}
 
-      {/* Speed Menu */}
+      {/* Speed Menu — frosted glass */}
       {showSpeedMenu && (
-        <div className="absolute right-16 bottom-24 bg-card/92 backdrop-blur-3xl border border-border/80 rounded-2xl shadow-2xl p-2 z-30 flex flex-col gap-1 min-w-[130px] animate-in zoom-in-95 duration-150">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase px-2 py-1">
+        <div
+          className="absolute right-16 bottom-24 rounded-2xl shadow-2xl p-2 z-30 flex flex-col gap-1 min-w-[130px] animate-in zoom-in-95 duration-150"
+          style={{
+            background: "rgba(10,10,20,0.72)",
+            backdropFilter: "blur(36px) saturate(180%)",
+            WebkitBackdropFilter: "blur(36px) saturate(180%)",
+            border: "1px solid rgba(255,255,255,0.10)",
+          }}
+        >
+          <span className="text-[10px] font-semibold text-white/50 uppercase px-2 py-1">
             Playback Speed
           </span>
           {[0.5, 0.75, 1, 1.25, 1.5, 2].map((spd) => (
@@ -542,10 +609,10 @@ export function VideoPlayer({
                 setShowSpeedMenu(false);
               }}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-medium text-left flex items-center justify-between",
+                "px-3 py-1.5 rounded-lg text-xs font-medium text-left flex items-center justify-between transition-colors",
                 playbackSpeed === spd
                   ? "bg-primary text-primary-foreground font-semibold"
-                  : "hover:bg-accent text-foreground",
+                  : "hover:bg-white/10 text-white/80 hover:text-white",
               )}
             >
               <span>{spd === 1 ? "Normal (1x)" : `${spd}x`}</span>
@@ -555,10 +622,18 @@ export function VideoPlayer({
         </div>
       )}
 
-      {/* Subtitles Menu */}
+      {/* Subtitles Menu — frosted glass */}
       {showSubMenu && (
-        <div className="absolute right-28 bottom-24 bg-card/92 backdrop-blur-3xl border border-border/80 rounded-2xl shadow-2xl p-2 z-30 flex flex-col gap-1 min-w-[160px] animate-in zoom-in-95 duration-150">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase px-2 py-1">
+        <div
+          className="absolute right-28 bottom-24 rounded-2xl shadow-2xl p-2 z-30 flex flex-col gap-1 min-w-[160px] animate-in zoom-in-95 duration-150"
+          style={{
+            background: "rgba(10,10,20,0.72)",
+            backdropFilter: "blur(36px) saturate(180%)",
+            WebkitBackdropFilter: "blur(36px) saturate(180%)",
+            border: "1px solid rgba(255,255,255,0.10)",
+          }}
+        >
+          <span className="text-[10px] font-semibold text-white/50 uppercase px-2 py-1">
             Subtitles
           </span>
           <button
@@ -567,10 +642,10 @@ export function VideoPlayer({
               setShowSubMenu(false);
             }}
             className={cn(
-              "px-3 py-1.5 rounded-lg text-xs font-medium text-left flex items-center justify-between",
+              "px-3 py-1.5 rounded-lg text-xs font-medium text-left flex items-center justify-between transition-colors",
               activeSubtitle === null
                 ? "bg-primary text-primary-foreground font-semibold"
-                : "hover:bg-accent text-foreground",
+                : "hover:bg-white/10 text-white/80 hover:text-white",
             )}
           >
             <span>Off</span>
@@ -584,10 +659,10 @@ export function VideoPlayer({
                 setShowSubMenu(false);
               }}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-medium text-left flex items-center justify-between",
+                "px-3 py-1.5 rounded-lg text-xs font-medium text-left flex items-center justify-between transition-colors",
                 activeSubtitle === track
                   ? "bg-primary text-primary-foreground font-semibold"
-                  : "hover:bg-accent text-foreground",
+                  : "hover:bg-white/10 text-white/80 hover:text-white",
               )}
             >
               <span className="truncate">{track}</span>
@@ -596,13 +671,19 @@ export function VideoPlayer({
               )}
             </button>
           ))}
+          {subtitleTracks.length === 0 && (
+            <p className="px-3 py-2 text-xs text-white/40">
+              No subtitle tracks found.
+            </p>
+          )}
         </div>
       )}
 
-      {/* Bottom Controls Overlay */}
+      {/* Bottom Controls Overlay — frosted glass gradient */}
       <div
         className={cn(
-          "absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-4 md:p-6 flex flex-col gap-3 transition-opacity duration-300 z-20",
+          "absolute bottom-0 inset-x-0 p-4 md:p-6 flex flex-col gap-3 transition-opacity duration-300 z-20",
+          "bg-gradient-to-t from-black/90 via-black/40 to-transparent",
           controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none",
         )}
       >
@@ -712,27 +793,25 @@ export function VideoPlayer({
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
-            {/* Subtitles Toggle */}
-            {subtitleTracks.length > 0 && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setShowSubMenu((prev) => !prev);
-                  setShowSpeedMenu(false);
-                  setShowEpisodeMenu(false);
-                }}
-                className={cn(
-                  "rounded-full h-9 w-9",
-                  activeSubtitle
-                    ? "text-primary hover:bg-primary/20"
-                    : "text-white hover:bg-white/10",
-                )}
-                title="Subtitles"
-              >
-                <Subtitles className="w-4 h-4" />
-              </Button>
-            )}
+            {/* Subtitles Toggle — always shown so user can see if tracks exist */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setShowSubMenu((prev) => !prev);
+                setShowSpeedMenu(false);
+                setShowEpisodeMenu(false);
+              }}
+              className={cn(
+                "rounded-full h-9 w-9",
+                activeSubtitle
+                  ? "text-primary hover:bg-primary/20"
+                  : "text-white hover:bg-white/10",
+              )}
+              title="Subtitles"
+            >
+              <Subtitles className="w-4 h-4" />
+            </Button>
 
             {/* Playback Speed Menu Button */}
             <Button
