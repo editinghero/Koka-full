@@ -491,13 +491,13 @@ function AnimeDetail() {
 
               return (
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-primary/10 border border-primary/20">
-                  <div className="min-w-0">
-                    <span className="text-[11px] font-semibold text-primary uppercase tracking-wider">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[11px] font-semibold text-primary uppercase tracking-wider block">
                       {latestWatch && !latestWatch.completed
                         ? "Resume Watching"
                         : "Play Next"}
                     </span>
-                    <h3 className="font-display font-semibold text-sm truncate text-foreground">
+                    <h3 className="font-display font-semibold text-sm whitespace-normal break-words leading-relaxed text-foreground mt-0.5">
                       {nextSeason} &bull; {nextLabel}
                     </h3>
                   </div>
@@ -554,21 +554,21 @@ function AnimeDetail() {
                           }
                           className="group relative flex flex-col p-3 rounded-lg border border-border bg-card/60 hover:bg-accent/70 hover:border-primary/40 transition-all text-left overflow-hidden"
                         >
-                          <div className="flex items-center justify-between w-full">
-                            <span className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors truncate pr-2">
+                          <div className="flex items-start justify-between w-full gap-2">
+                            <span className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors line-clamp-2 break-words leading-snug">
                               {ep.label}
                             </span>
                             {isComplete ? (
-                              <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                              <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
                             ) : (
-                              <Play className="h-3 w-3 text-muted-foreground group-hover:text-primary shrink-0 transition-colors" />
+                              <Play className="h-3 w-3 text-muted-foreground group-hover:text-primary shrink-0 transition-colors mt-0.5" />
                             )}
                           </div>
 
-                          <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
-                            <span className="truncate">{ep.file}</span>
+                          <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground w-full">
+                            <span className="truncate flex-1 min-w-0 pr-1">{ep.file}</span>
                             {(ep.subtitles?.length ?? 0) > 0 && (
-                              <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-muted">
+                              <span className="shrink-0 text-[9px] px-1 py-0.2 rounded bg-muted">
                                 CC
                               </span>
                             )}
