@@ -1,11 +1,9 @@
--- Koka — Cloudflare D1 schema
+-- Koka — Cloudflare D1 Schema & Migrations
 -- Apply with:
---   npx wrangler d1 execute koka --remote --file docs/d1-schema.sql
+--   npx wrangler d1 execute koka-full --remote --file db/d1-schema.sql
 --
--- This matches exactly what the app creates at runtime
--- (src/server/repo.server.ts). Everything the app stores — accounts,
--- settings (with the Gemini key encrypted), the anime/manga library with
--- decimal scores, dates and rewatches, notes, and the import log — lives here.
+-- Contains: Users, encrypted Settings, Library entries, Notes, Import logs,
+-- Watch progress, Manga/Novel read progress, and Multi-Device Local Media Links.
 
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
@@ -16,16 +14,19 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS settings (
-  user_id      TEXT PRIMARY KEY,
-  gemini_key   TEXT,                 -- AES-GCM ciphertext ("enc:" prefix)
-  model        TEXT,
-  anilist_user TEXT,
-  spoiler_free INTEGER NOT NULL DEFAULT 1,
-  theme        TEXT NOT NULL DEFAULT 'dark',
-  light_theme  TEXT NOT NULL DEFAULT 'paper',
-  dark_theme   TEXT NOT NULL DEFAULT 'koka',
-  media_mode   TEXT NOT NULL DEFAULT 'ANIME',
-  updated_at   INTEGER
+  user_id       TEXT PRIMARY KEY,
+  gemini_key    TEXT,                 -- AES-GCM ciphertext ("enc:" prefix)
+  model         TEXT,
+  anilist_user  TEXT,
+  spoiler_free  INTEGER NOT NULL DEFAULT 1,
+  theme         TEXT NOT NULL DEFAULT 'dark',
+  light_theme   TEXT NOT NULL DEFAULT 'paper',
+  dark_theme    TEXT NOT NULL DEFAULT 'koka',
+  media_mode    TEXT NOT NULL DEFAULT 'ANIME',
+  tunnel_url    TEXT,
+  stream_secret TEXT,
+  updated_at    INTEGER,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS library_entries (
@@ -39,12 +40,13 @@ CREATE TABLE IF NOT EXISTS library_entries (
   started_at   TEXT,
   completed_at TEXT,
   repeat_count INTEGER,
-  tags        TEXT    NOT NULL DEFAULT '[]',   -- JSON array
-  custom_lists TEXT   NOT NULL DEFAULT '[]',   -- JSON array
-  media       TEXT    NOT NULL,     -- JSON snapshot of the AniList media
+  tags         TEXT    NOT NULL DEFAULT '[]',   -- JSON array
+  custom_lists TEXT    NOT NULL DEFAULT '[]',   -- JSON array
+  media        TEXT    NOT NULL,     -- JSON snapshot of the AniList media
   updated_at   INTEGER NOT NULL,
   added_at     INTEGER NOT NULL,
-  PRIMARY KEY (user_id, media_type, media_id)
+  PRIMARY KEY (user_id, media_type, media_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_library_status
@@ -60,7 +62,8 @@ CREATE TABLE IF NOT EXISTS notes (
   body       TEXT    NOT NULL DEFAULT '',
   tags       TEXT    NOT NULL DEFAULT '[]',   -- JSON array
   updated_at INTEGER NOT NULL,
-  PRIMARY KEY (user_id, media_type, media_id)
+  PRIMARY KEY (user_id, media_type, media_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_notes_updated
@@ -72,5 +75,54 @@ CREATE TABLE IF NOT EXISTS import_log (
   source     TEXT NOT NULL,
   mode       TEXT NOT NULL,   -- merge | replace
   count      INTEGER NOT NULL,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS watch_progress (
+  slug             TEXT NOT NULL,
+  season           TEXT NOT NULL,
+  episode_file     TEXT NOT NULL,
+  position_seconds REAL NOT NULL DEFAULT 0,
+  duration_seconds REAL NOT NULL DEFAULT 0,
+  completed        INTEGER NOT NULL DEFAULT 0,
+  last_watched_at  TEXT NOT NULL,
+  PRIMARY KEY (slug, season, episode_file)
+);
+
+CREATE INDEX IF NOT EXISTS idx_watch_progress_lastWatched 
+  ON watch_progress(last_watched_at DESC);
+
+CREATE TABLE IF NOT EXISTS read_progress (
+  slug         TEXT NOT NULL,
+  chapter_file TEXT NOT NULL,
+  page_number  INTEGER NOT NULL DEFAULT 1,
+  total_pages  INTEGER NOT NULL DEFAULT 1,
+  completed    INTEGER NOT NULL DEFAULT 0,
+  last_read_at TEXT NOT NULL,
+  PRIMARY KEY (slug, chapter_file)
+);
+
+CREATE INDEX IF NOT EXISTS idx_read_progress_lastRead 
+  ON read_progress(last_read_at DESC);
+
+CREATE TABLE IF NOT EXISTS local_media_links (
+  device_id    TEXT NOT NULL DEFAULT 'default',
+  media_type   TEXT NOT NULL,
+  media_id     INTEGER NOT NULL,
+  folder_slug  TEXT NOT NULL,
+  folder_name  TEXT NOT NULL,
+  folder_path  TEXT NOT NULL,
+  custom_title TEXT,
+  linked_at    INTEGER NOT NULL,
+  PRIMARY KEY (media_type, media_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_media_slug
+  ON local_media_links(media_type, folder_slug);
+
+CREATE TABLE IF NOT EXISTS metadata_cache (
+  cache_key  TEXT PRIMARY KEY,
+  payload    TEXT NOT NULL,
+  fetched_at TEXT NOT NULL
 );

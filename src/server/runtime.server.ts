@@ -27,9 +27,9 @@ export function setCloudflareEnv(env: unknown) {
   if (env && typeof env === "object") {
     cloudflareEnv = env as Record<string, unknown>;
     const g = globalThis as unknown as Record<string, unknown>;
-    g.__CF_ENV__ = env;
+    g["__CF_ENV__"] = env;
     if (cloudflareEnv["DB"]) {
-      g.__D1_DB__ = cloudflareEnv["DB"];
+      g["__D1_DB__"] = cloudflareEnv["DB"];
     }
   }
 }

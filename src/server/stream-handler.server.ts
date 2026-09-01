@@ -7,6 +7,7 @@ import {
   getMangaPageBuffer,
   getMimeType,
 } from "./media.server";
+import { getScanState, scanLibrary } from "./scanner.server";
 import { isSafePath } from "./path-guard.server";
 
 const ALLOWED_VIDEO_EXTS = new Set([
@@ -42,6 +43,51 @@ export async function handleMediaStreamRequest(
 ): Promise<Response | null> {
   const url = new URL(request.url);
   const pathname = url.pathname;
+
+  // 0. Health check and Scanner state endpoints for Dashboard / Probe
+  if (pathname === "/api/health" || pathname === "/health") {
+    return new Response(
+      JSON.stringify({
+        status: "ok",
+        deviceId: "pc",
+        nodeName: "Koka Desktop Host",
+        nodeType: "desktop",
+        authenticated: true,
+        timestamp: Date.now(),
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      },
+    );
+  }
+
+  if (pathname === "/api/scanner/state") {
+    let state = getScanState();
+    if (state.lastScannedAt === 0 && !state.isScanning) {
+      state = await scanLibrary();
+    }
+
+    return new Response(
+      JSON.stringify({
+        online: true,
+        deviceId: "pc",
+        nodeName: "Koka Desktop Host",
+        nodeType: "desktop",
+        anime: state.anime || [],
+        manga: state.manga || [],
+        timestamp: state.lastScannedAt || Date.now(),
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      },
+    );
+  }
 
   // 1. Video streaming endpoint
   if (pathname === "/api/stream/video") {

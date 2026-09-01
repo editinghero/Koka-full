@@ -53,6 +53,8 @@ export async function ensureDbInitialized(): Promise<Client> {
       media_mode TEXT NOT NULL DEFAULT 'ANIME',
       anime_path TEXT NOT NULL DEFAULT './anime',
       manga_path TEXT NOT NULL DEFAULT './manga',
+      tunnel_url TEXT,
+      stream_secret TEXT,
       updated_at INTEGER,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -151,6 +153,19 @@ export async function ensureDbInitialized(): Promise<Client> {
     CREATE INDEX IF NOT EXISTS idx_local_media_slug
     ON local_media_links(media_type, folder_slug);
   `);
+
+  // Safe runtime migrations for existing databases
+  try {
+    await client.execute("ALTER TABLE settings ADD COLUMN tunnel_url TEXT");
+  } catch {}
+  try {
+    await client.execute("ALTER TABLE settings ADD COLUMN stream_secret TEXT");
+  } catch {}
+  try {
+    await client.execute(
+      "ALTER TABLE local_media_links ADD COLUMN device_id TEXT DEFAULT 'default'",
+    );
+  } catch {}
 
   initialized = true;
   return client;

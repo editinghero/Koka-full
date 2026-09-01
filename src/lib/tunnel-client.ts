@@ -18,6 +18,7 @@ export interface ConnectedNodeInfo {
 }
 
 const DEFAULT_TUNNEL_KEY = "koka:hybrid:tunnel_url";
+const DEFAULT_TUNNEL_SECRET_KEY = "koka:hybrid:tunnel_secret";
 import { getSettings } from "./store";
 
 export function getStoredTunnelUrl(): string {

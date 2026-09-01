@@ -4,15 +4,17 @@ import { join } from "node:path";
 export interface AppConfig {
   animePath: string;
   mangaPath: string;
+  novelPath?: string | undefined;
   anilistUsername: string;
 }
 
 const CONFIG_PATH = join(process.cwd(), "config.json");
 
-function getDefaultPaths(): { animePath: string; mangaPath: string } {
+function getDefaultPaths(): { animePath: string; mangaPath: string; novelPath: string } {
   return {
     animePath: existsSync(join(process.cwd(), "anime")) ? "./anime" : "./",
     mangaPath: existsSync(join(process.cwd(), "manga")) ? "./manga" : "./",
+    novelPath: existsSync(join(process.cwd(), "novel")) ? "./novel" : "",
   };
 }
 
@@ -26,6 +28,7 @@ export function loadAppConfig(): AppConfig {
       return {
         animePath: parsed.animePath ?? defaults.animePath,
         mangaPath: parsed.mangaPath ?? defaults.mangaPath,
+        novelPath: parsed.novelPath ?? defaults.novelPath,
         anilistUsername: parsed.anilistUsername ?? "",
       };
     }
@@ -36,6 +39,7 @@ export function loadAppConfig(): AppConfig {
   const initial: AppConfig = {
     animePath: defaults.animePath,
     mangaPath: defaults.mangaPath,
+    novelPath: defaults.novelPath,
     anilistUsername: "",
   };
 
@@ -53,6 +57,7 @@ export function saveAppConfig(config: Partial<AppConfig>): AppConfig {
   let current: AppConfig = {
     animePath: defaults.animePath,
     mangaPath: defaults.mangaPath,
+    novelPath: defaults.novelPath,
     anilistUsername: "",
   };
 
@@ -68,6 +73,7 @@ export function saveAppConfig(config: Partial<AppConfig>): AppConfig {
   const updated: AppConfig = {
     animePath: config.animePath ?? current.animePath,
     mangaPath: config.mangaPath ?? current.mangaPath,
+    novelPath: config.novelPath ?? current.novelPath,
     anilistUsername: config.anilistUsername ?? current.anilistUsername,
   };
 

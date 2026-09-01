@@ -41,7 +41,7 @@ export interface MangaChapter {
   file: string;
   label: string;
   relativePath: string;
-  format: "folder" | "cbz" | "zip" | "cbr";
+  format: "folder" | "cbz" | "zip" | "cbr" | "cb7" | "cbt" | "pdf" | "epub" | "images";
   pageCount?: number | undefined;
 }
 
@@ -90,7 +90,18 @@ const IMAGE_EXTENSIONS = new Set([
   ".heic",
   ".heif",
 ]);
-const ARCHIVE_EXTENSIONS = new Set([".cbz", ".zip", ".cbr", ".rar"]);
+const ARCHIVE_EXTENSIONS = new Set([
+  ".cbz",
+  ".zip",
+  ".cbr",
+  ".rar",
+  ".cb7",
+  ".7z",
+  ".cbt",
+  ".tar",
+  ".pdf",
+  ".epub",
+]);
 
 const STATUS_FOLDERS = [
   "watching",
@@ -380,13 +391,15 @@ function scanMangaTitleFolder(
     if (isFileEntry(item, titlePath)) {
       const ext = extname(item.name).toLowerCase();
       if (ARCHIVE_EXTENSIONS.has(ext)) {
-        const format = (
-          ext === ".cbr" || ext === ".rar"
-            ? "cbr"
-            : ext === ".cbz"
-              ? "cbz"
-              : "zip"
-        ) as MangaChapter["format"];
+        let format: MangaChapter["format"] = "zip";
+        if (ext === ".cbz") format = "cbz";
+        else if (ext === ".zip") format = "zip";
+        else if (ext === ".cbr" || ext === ".rar") format = "cbr";
+        else if (ext === ".cb7" || ext === ".7z") format = "cb7";
+        else if (ext === ".cbt" || ext === ".tar") format = "cbt";
+        else if (ext === ".pdf") format = "pdf";
+        else if (ext === ".epub") format = "epub";
+
         chapters.push({
           file: item.name,
           label: parse(item.name).name,
@@ -416,6 +429,22 @@ function scanMangaTitleFolder(
       } catch {
         /* ignore unreadable directory */
       }
+    }
+  }
+
+  // If no archive or chapter subfolders found, check for direct loose images in the root title folder
+  if (chapters.length === 0) {
+    const looseImages = entries.filter(
+      (f) => isFileEntry(f, titlePath) && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
+    );
+    if (looseImages.length > 0) {
+      chapters.push({
+        file: folderName,
+        label: folderName,
+        relativePath: "",
+        format: "folder",
+        pageCount: looseImages.length,
+      });
     }
   }
 
@@ -577,9 +606,14 @@ export async function scanLibrary(): Promise<LibraryScanState> {
       }
     }
 
-    // 2. Scan Manga Library
-    const mangaRoot = resolvePath(config.mangaPath);
-    if (existsSync(mangaRoot)) {
+    // 2. Scan Manga & Novel Library
+    const mangaRoots = [
+      resolvePath(config.mangaPath),
+      ...(config.novelPath ? [resolvePath(config.novelPath)] : []),
+    ];
+
+    for (const mangaRoot of mangaRoots) {
+      if (!existsSync(mangaRoot)) continue;
       const rootEntries = readdirSync(mangaRoot, { withFileTypes: true });
 
       for (const entry of rootEntries) {
@@ -615,7 +649,7 @@ export async function scanLibrary(): Promise<LibraryScanState> {
             }
           }
         } else {
-          // Direct manga folder
+          // Direct manga / novel folder
           const titlePath = join(mangaRoot, entry.name);
           const manga = scanMangaTitleFolder(
             titlePath,

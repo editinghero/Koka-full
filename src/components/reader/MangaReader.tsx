@@ -171,6 +171,13 @@ export function MangaReader({
   );
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Novel & Document State
+  const isPdf = chapterFile.toLowerCase().endsWith(".pdf");
+  const isEpub = chapterFile.toLowerCase().endsWith(".epub");
+  const [epubContent, setEpubContent] = useState<string>("");
+  const [isEpubLoading, setIsEpubLoading] = useState<boolean>(false);
+  const [novelFontSize, setNovelFontSize] = useState<number>(18);
+
   // Reset pan offset when zoom returns to 100% or mode/page changes
   useEffect(() => {
     if (zoomLevel <= 100) {
@@ -420,6 +427,28 @@ export function MangaReader({
       active = false;
     };
   }, [slug, chapterFile, initialPage]);
+
+  // Load EPUB chapter content when viewing an EPUB
+  useEffect(() => {
+    if (!isEpub || isLoading) return;
+    setIsEpubLoading(true);
+    const url = buildStreamUrl("/api/stream/manga-page", {
+      slug,
+      chapter: chapterFile,
+      page: Math.max(0, currentPage - 1),
+    });
+
+    fetch(url)
+      .then((res) => res.text())
+      .then((html) => {
+        setEpubContent(html);
+        setIsEpubLoading(false);
+      })
+      .catch((err) => {
+        console.warn("Failed to load EPUB chapter:", err);
+        setIsEpubLoading(false);
+      });
+  }, [isEpub, isLoading, slug, chapterFile, currentPage]);
 
   // Save reading progress
   const saveProgress = useCallback(
@@ -1589,7 +1618,42 @@ export function MangaReader({
       >
         {isLoading ? (
           <div className="flex items-center justify-center w-full h-full min-h-screen text-muted-foreground text-sm font-medium">
-            Loading chapter pages...
+            Loading chapter content...
+          </div>
+        ) : isPdf ? (
+          // PDF Document Viewer with Range streaming
+          <div className="w-full h-full min-h-[94vh] flex items-center justify-center p-2 sm:p-4">
+            <iframe
+              src={`${buildStreamUrl("/api/stream/manga-page", {
+                slug,
+                chapter: chapterFile,
+                page: 0,
+              })}#page=${currentPage}`}
+              className="w-full h-[92vh] border-0 rounded-2xl shadow-2xl bg-card"
+              title={title}
+            />
+          </div>
+        ) : isEpub ? (
+          // EPUB Light Novel Text Reader with Typography Scaling
+          <div
+            onClick={handleCenterClick}
+            className="w-full max-w-3xl mx-auto px-4 py-8 sm:py-12 min-h-screen cursor-pointer select-text"
+            style={{
+              fontSize: `${novelFontSize}px`,
+              lineHeight: 1.8,
+              ...getImageFilterStyle(),
+            }}
+          >
+            {isEpubLoading ? (
+              <div className="flex items-center justify-center py-20 text-muted-foreground text-sm font-medium">
+                Loading chapter {currentPage}...
+              </div>
+            ) : (
+              <div
+                dangerouslySetInnerHTML={{ __html: epubContent }}
+                className="novel-content font-sans break-words space-y-4 text-foreground/90 leading-relaxed"
+              />
+            )}
           </div>
         ) : mode === "webtoon" ? (
           // Continuous Webtoon Scroll with Zoom scaling on desktop and mobile

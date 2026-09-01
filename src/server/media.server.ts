@@ -49,11 +49,53 @@ const MIME_MAP: Record<string, string> = {
   ".jxl": "image/jxl",
   ".heic": "image/heic",
   ".heif": "image/heif",
+  ".pdf": "application/pdf",
+  ".epub": "application/epub+zip",
+  ".html": "text/html",
+  ".xhtml": "application/xhtml+xml",
+  ".htm": "text/html",
+  ".txt": "text/plain",
 };
 
 export interface MangaChapterPageInfo {
   pageCount: number;
   pages: { index: number; name: string }[];
+  isPdf?: boolean;
+  isEpub?: boolean;
+  format?: string;
+}
+
+function parseTarEntries(buffer: Buffer): { name: string; size: number; dataOffset: number }[] {
+  const entries: { name: string; size: number; dataOffset: number }[] = [];
+  let offset = 0;
+  while (offset + 512 <= buffer.length) {
+    const header = buffer.subarray(offset, offset + 512);
+    if (header[0] === 0) break;
+    
+    let nameEnd = 0;
+    while (nameEnd < 100 && header[nameEnd] !== 0) nameEnd++;
+    const name = header.toString("utf-8", 0, nameEnd).trim();
+    
+    const sizeStr = header.toString("utf-8", 124, 136).replace(/\0.*$/, "").trim();
+    const size = parseInt(sizeStr, 8) || 0;
+    
+    const typeFlag = String.fromCharCode(header[156] ?? 0);
+    const isFile = typeFlag === "0" || typeFlag === "\0" || typeFlag === "";
+    
+    const dataOffset = offset + 512;
+    if (isFile && IMAGE_EXTENSIONS.has(extname(name).toLowerCase()) && !name.startsWith("._")) {
+      entries.push({
+        name,
+        size,
+        dataOffset,
+      });
+    }
+    
+    const blocks = Math.ceil(size / 512);
+    offset = dataOffset + blocks * 512;
+  }
+  entries.sort((a, b) => naturalSortPages(a.name, b.name));
+  return entries;
 }
 
 export function getMimeType(filePath: string): string {
@@ -95,6 +137,59 @@ export async function getMangaChapterPages(
     throw new Error("Chapter file does not exist");
   }
 
+  if (chapter.format === "pdf" || chapterPath.toLowerCase().endsWith(".pdf")) {
+    return {
+      pageCount: 1,
+      pages: [{ index: 0, name: parse(chapterFile).name }],
+      isPdf: true,
+      format: "pdf",
+    };
+  }
+
+  if (chapter.format === "epub" || chapterPath.toLowerCase().endsWith(".epub")) {
+    try {
+      const zip = new AdmZip(chapterPath);
+      const entries = zip
+        .getEntries()
+        .filter((e) => !e.isDirectory && !e.entryName.startsWith("__MACOSX"))
+        .sort((a, b) => naturalSortPages(a.entryName, b.entryName));
+
+      const xhtmlEntries = entries.filter((e) =>
+        /\.(xhtml|html|htm)$/i.test(e.entryName) &&
+        !e.entryName.toLowerCase().includes("toc") &&
+        !e.entryName.toLowerCase().includes("nav"),
+      );
+
+      const imageEntries = entries.filter((e) =>
+        IMAGE_EXTENSIONS.has(extname(e.entryName).toLowerCase()),
+      );
+
+      const chosenEntries = xhtmlEntries.length > 0 ? xhtmlEntries : (imageEntries.length > 0 ? imageEntries : entries);
+
+      return {
+        pageCount: chosenEntries.length,
+        pages: chosenEntries.map((e, index) => ({ index, name: parse(e.entryName).base })),
+        isEpub: true,
+        format: "epub",
+      };
+    } catch {
+      return { pageCount: 1, pages: [{ index: 0, name: parse(chapterFile).name }], isEpub: true, format: "epub" };
+    }
+  }
+
+  if (chapter.format === "cbt" || chapterPath.toLowerCase().endsWith(".cbt") || chapterPath.toLowerCase().endsWith(".tar")) {
+    const buffer = readFileSync(chapterPath);
+    const entries = parseTarEntries(buffer);
+    return {
+      pageCount: entries.length,
+      pages: entries.map((entry, index) => ({
+        index,
+        name: parse(entry.name).base,
+      })),
+      format: "cbt",
+    };
+  }
+
   if (chapter.format === "folder") {
     const files = readdirSync(chapterPath, { withFileTypes: true });
     const imageFiles = files
@@ -108,6 +203,7 @@ export async function getMangaChapterPages(
     return {
       pageCount: imageFiles.length,
       pages: imageFiles.map((name, index) => ({ index, name })),
+      format: "folder",
     };
   }
 
@@ -128,6 +224,7 @@ export async function getMangaChapterPages(
         index,
         name: parse(entry.entryName).base,
       })),
+      format: chapter.format,
     };
   }
 
@@ -152,6 +249,7 @@ export async function getMangaChapterPages(
           index,
           name: parse(f.name).base,
         })),
+        format: "cbr",
       };
     } catch (err) {
       console.warn("CBR listing error:", err);
@@ -179,6 +277,42 @@ export async function getMangaPageBuffer(
   const chapterPath = join(manga.folderPath, chapter.relativePath);
   if (!isSafePath(manga.folderPath, chapterPath) || !existsSync(chapterPath)) {
     return null;
+  }
+
+  if (chapter.format === "pdf" || chapterPath.toLowerCase().endsWith(".pdf")) {
+    const buffer = readFileSync(chapterPath);
+    return { buffer, mimeType: "application/pdf" };
+  }
+
+  if (chapter.format === "epub" || chapterPath.toLowerCase().endsWith(".epub")) {
+    const zip = new AdmZip(chapterPath);
+    const entries = zip
+      .getEntries()
+      .filter((e) => !e.isDirectory && !e.entryName.startsWith("__MACOSX"))
+      .sort((a, b) => naturalSortPages(a.entryName, b.entryName));
+
+    const xhtmlEntries = entries.filter((e) =>
+      /\.(xhtml|html|htm)$/i.test(e.entryName) &&
+      !e.entryName.toLowerCase().includes("toc") &&
+      !e.entryName.toLowerCase().includes("nav"),
+    );
+
+    const chosenEntries = xhtmlEntries.length > 0 ? xhtmlEntries : entries;
+    const entry = chosenEntries[pageIndex] || entries[pageIndex];
+    if (!entry) return null;
+
+    const buffer = entry.getData();
+    return { buffer, mimeType: getMimeType(entry.entryName) };
+  }
+
+  if (chapter.format === "cbt" || chapterPath.toLowerCase().endsWith(".cbt") || chapterPath.toLowerCase().endsWith(".tar")) {
+    const fileBuffer = readFileSync(chapterPath);
+    const entries = parseTarEntries(fileBuffer);
+    const entry = entries[pageIndex];
+    if (!entry) return null;
+
+    const buffer = fileBuffer.subarray(entry.dataOffset, entry.dataOffset + entry.size);
+    return { buffer, mimeType: getMimeType(entry.name) };
   }
 
   if (chapter.format === "folder") {

@@ -665,8 +665,6 @@ function LocalMediaLibrarySection() {
   const [tunnelUrl, setTunnelUrl] = useState(settings.tunnelUrl || "");
   const [tunnelSecret, setTunnelSecret] = useState(settings.streamSecret || "");
   const [showSecret, setShowSecret] = useState(false);
-  const [animePath, setAnimePath] = useState("./anime");
-  const [mangaPath, setMangaPath] = useState("./manga");
   const [isSaving, setIsSaving] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -689,11 +687,6 @@ function LocalMediaLibrarySection() {
       if (u) {
         probeTunnelNode(u, s).then(setNodeStatus);
       }
-    });
-
-    getMediaConfig().then((cfg) => {
-      if (cfg.animePath) setAnimePath(cfg.animePath);
-      if (cfg.mangaPath) setMangaPath(cfg.mangaPath);
     });
   }, [settings.tunnelUrl, settings.streamSecret]);
 
@@ -730,9 +723,6 @@ function LocalMediaLibrarySection() {
       update({
         tunnelUrl: tunnelUrl.trim().replace(/\/+$/, ""),
         streamSecret: tunnelSecret.trim(),
-      });
-      await updateMediaConfig({
-        data: { animePath, mangaPath },
       });
       const res = await probeTunnelNode(tunnelUrl, tunnelSecret);
       setNodeStatus(res);
@@ -829,30 +819,6 @@ function LocalMediaLibrarySection() {
                 {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="anime-path">Local Anime Path (Local Dev Fallback)</Label>
-            <Input
-              id="anime-path"
-              value={animePath}
-              onChange={(e) => setAnimePath(e.target.value)}
-              placeholder="./anime or E:/AniStash-Play/anime/finished"
-              className="text-xs font-mono"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="manga-path">Local Manga Path (Local Dev Fallback)</Label>
-            <Input
-              id="manga-path"
-              value={mangaPath}
-              onChange={(e) => setMangaPath(e.target.value)}
-              placeholder="./manga or D:/Manga"
-              className="text-xs font-mono"
-            />
           </div>
         </div>
 

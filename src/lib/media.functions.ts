@@ -468,6 +468,7 @@ export const updateMediaConfig = createServerFn({ method: "POST" })
     (data: {
       animePath?: string;
       mangaPath?: string;
+      novelPath?: string;
       anilistUsername?: string;
     }) => data,
   )
