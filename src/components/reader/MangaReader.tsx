@@ -166,7 +166,7 @@ export function MangaReader({
 
   const [currentPage, setCurrentPage] = useState<number>(initialPage);
   const [totalPages, setTotalPages] = useState<number>(1);
-  const [pagesList, setPagesList] = useState<{ index: number; name: string }[]>(
+  const [pagesList, setPagesList] = useState<{ index: number; name: string; type?: "html" | "image" }[]>(
     [],
   );
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -177,6 +177,8 @@ export function MangaReader({
   const [epubContent, setEpubContent] = useState<string>("");
   const [isEpubLoading, setIsEpubLoading] = useState<boolean>(false);
   const [novelFontSize, setNovelFontSize] = useState<number>(18);
+  const currentEpubPage = isEpub ? pagesList[Math.max(0, currentPage - 1)] : undefined;
+  const isEpubImagePage = isEpub && currentEpubPage?.type === "image";
 
   const getEpubScrollStorageKey = useCallback(
     (chapter = chapterFile, section = currentPage) =>
@@ -442,6 +444,13 @@ export function MangaReader({
   // Load EPUB chapter content when viewing an EPUB
   useEffect(() => {
     if (!isEpub || isLoading) return;
+
+    if (isEpubImagePage) {
+      setEpubContent("");
+      setIsEpubLoading(false);
+      return;
+    }
+
     setIsEpubLoading(true);
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
@@ -462,7 +471,7 @@ export function MangaReader({
         console.warn("Failed to load EPUB chapter:", err);
         setIsEpubLoading(false);
       });
-  }, [isEpub, isLoading, slug, chapterFile, currentPage]);
+  }, [isEpub, isLoading, isEpubImagePage, slug, chapterFile, currentPage]);
 
   // Restore EPUB scroll position within the current spine section after content loads.
   useEffect(() => {
@@ -1684,7 +1693,7 @@ export function MangaReader({
             />
           </div>
         ) : isEpub ? (
-          // EPUB Light Novel Text Reader with Typography Scaling
+          // EPUB reader: spine HTML is rendered as text; spine image items are rendered as images.
           <div
             onClick={handleCenterClick}
             className="w-full max-w-3xl mx-auto px-4 py-8 sm:py-12 min-h-screen cursor-pointer select-text"
@@ -1697,6 +1706,19 @@ export function MangaReader({
             {isEpubLoading ? (
               <div className="flex items-center justify-center py-20 text-muted-foreground text-sm font-medium">
                 Loading chapter {currentPage}...
+              </div>
+            ) : isEpubImagePage ? (
+              <div className="w-full min-h-[70vh] flex items-center justify-center">
+                <img
+                  src={buildStreamUrl("/api/stream/manga-page", {
+                    slug,
+                    chapter: chapterFile,
+                    page: currentPage - 1,
+                  })}
+                  alt={currentEpubPage?.name || `Image ${currentPage}`}
+                  style={getImageFilterStyle()}
+                  className="max-w-full h-auto rounded-md shadow-2xl"
+                />
               </div>
             ) : (
               <div
