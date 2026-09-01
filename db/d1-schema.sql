@@ -1,6 +1,6 @@
 -- Koka — Cloudflare D1 Schema & Migrations
 -- Apply with:
---   npx wrangler d1 execute koka-full --remote --file db/d1-schema.sql
+--   npx wrangler d1 execute kokaaq --remote --file db/d1-schema.sql
 --
 -- Contains: Users, encrypted Settings, Library entries, Notes, Import logs,
 -- Watch progress, Manga/Novel read progress, and Multi-Device Local Media Links.

@@ -116,7 +116,18 @@ export function findAnimeBySlug(slug: string) {
  */
 export function findMangaBySlug(slug: string) {
   const state = getScanState();
-  return state.manga.find((m) => m.slug === slug);
+  const clean = slug.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return (
+    state.manga.find((m) => m.slug === slug) ||
+    state.manga.find((m) => m.slug === clean) ||
+    state.manga.find((m) => m.folderName.toLowerCase() === slug.toLowerCase()) ||
+    state.manga.find((m) => m.slug.startsWith(clean) || clean.startsWith(m.slug)) ||
+    state.manga.find(
+      (m) =>
+        m.folderName.toLowerCase().includes(slug.toLowerCase()) ||
+        slug.toLowerCase().includes(m.folderName.toLowerCase()),
+    )
+  );
 }
 
 /**
@@ -129,11 +140,31 @@ export async function getMangaChapterPages(
   const manga = findMangaBySlug(slug);
   if (!manga) throw new Error("Manga not found");
 
-  const chapter = manga.chapters.find((c) => c.file === chapterFile);
+  const decodedChapter = decodeURIComponent(chapterFile);
+  const chapter =
+    manga.chapters.find(
+      (c) =>
+        c.file === chapterFile ||
+        c.file === decodedChapter ||
+        c.relativePath === chapterFile ||
+        c.label === chapterFile ||
+        c.file.toLowerCase() === chapterFile.toLowerCase() ||
+        c.file.toLowerCase() === decodedChapter.toLowerCase(),
+    ) || (manga.chapters.length === 1 ? manga.chapters[0] : undefined);
+
   if (!chapter) throw new Error("Chapter not found");
 
-  const chapterPath = join(manga.folderPath, chapter.relativePath);
-  if (!isSafePath(manga.folderPath, chapterPath) || !existsSync(chapterPath)) {
+  let chapterPath = "";
+  if (existsSync(manga.folderPath) && statSync(manga.folderPath).isFile()) {
+    chapterPath = manga.folderPath;
+  } else {
+    chapterPath = join(manga.folderPath, chapter.relativePath || chapterFile);
+    if (!existsSync(chapterPath)) {
+      chapterPath = join(manga.folderPath, decodedChapter);
+    }
+  }
+
+  if (!existsSync(chapterPath)) {
     throw new Error("Chapter file does not exist");
   }
 
@@ -271,11 +302,31 @@ export async function getMangaPageBuffer(
   const manga = findMangaBySlug(slug);
   if (!manga) return null;
 
-  const chapter = manga.chapters.find((c) => c.file === chapterFile);
+  const decodedChapter = decodeURIComponent(chapterFile);
+  const chapter =
+    manga.chapters.find(
+      (c) =>
+        c.file === chapterFile ||
+        c.file === decodedChapter ||
+        c.relativePath === chapterFile ||
+        c.label === chapterFile ||
+        c.file.toLowerCase() === chapterFile.toLowerCase() ||
+        c.file.toLowerCase() === decodedChapter.toLowerCase(),
+    ) || (manga.chapters.length === 1 ? manga.chapters[0] : undefined);
+
   if (!chapter) return null;
 
-  const chapterPath = join(manga.folderPath, chapter.relativePath);
-  if (!isSafePath(manga.folderPath, chapterPath) || !existsSync(chapterPath)) {
+  let chapterPath = "";
+  if (existsSync(manga.folderPath) && statSync(manga.folderPath).isFile()) {
+    chapterPath = manga.folderPath;
+  } else {
+    chapterPath = join(manga.folderPath, chapter.relativePath || chapterFile);
+    if (!existsSync(chapterPath)) {
+      chapterPath = join(manga.folderPath, decodedChapter);
+    }
+  }
+
+  if (!existsSync(chapterPath)) {
     return null;
   }
 

@@ -228,23 +228,39 @@ export async function handleMediaStreamRequest(
   // 3. Manga Page endpoint
   if (pathname === "/api/stream/manga-page") {
     const slug = url.searchParams.get("slug");
-    const chapter = url.searchParams.get("chapter");
+    const rawChapter = url.searchParams.get("chapter");
     const pageStr = url.searchParams.get("page");
     const pageIndex = pageStr ? parseInt(pageStr, 10) : 0;
 
     if (
       !slug ||
-      !chapter ||
+      !rawChapter ||
       isMaliciousPathSegment(slug) ||
-      isMaliciousPathSegment(chapter) ||
       isNaN(pageIndex)
     ) {
       return new Response("Invalid or missing parameters", { status: 400 });
     }
 
+    // Decode the chapter param — filenames can contain brackets, spaces, etc.
+    let chapter = rawChapter;
+    try { chapter = decodeURIComponent(rawChapter.replace(/\+/g, " ")); } catch { /* keep raw */ }
+
+    if (isMaliciousPathSegment(chapter)) {
+      return new Response("Invalid or missing parameters", { status: 400 });
+    }
+
     try {
+      // Trigger a scan if library hasn't been loaded yet
+      let state = getScanState();
+      if (state.lastScannedAt === 0 && !state.isScanning) {
+        state = await scanLibrary();
+      }
+
       const result = await getMangaPageBuffer(slug, chapter, pageIndex);
       if (!result) {
+        // Log what we have to diagnose mismatches
+        const allSlugs = getScanState().manga.map((m) => `${m.slug} (${m.folderName})`).join(", ");
+        console.warn(`[manga-page] 404 slug=${slug} chapter=${chapter} page=${pageIndex}. Known manga: ${allSlugs}`);
         return new Response("Page not found", { status: 404 });
       }
 

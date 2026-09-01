@@ -717,8 +717,20 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  function findMangaPathMulti(slug, chapter) {
-    if (isMaliciousPathSegment(slug) || isMaliciousPathSegment(chapter)) return null;
+  function findMangaPathMulti(rawSlug, rawChapter) {
+    if (isMaliciousPathSegment(rawSlug) || isMaliciousPathSegment(rawChapter)) return null;
+
+    let slug = "";
+    let chapter = "";
+    try {
+      slug = rawSlug ? decodeURIComponent(rawSlug.replace(/\+/g, " ")) : "";
+      chapter = rawChapter ? decodeURIComponent(rawChapter.replace(/\+/g, " ")) : "";
+    } catch {
+      slug = rawSlug || "";
+      chapter = rawChapter || "";
+    }
+
+    const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
     for (const mangaRoot of MANGA_PATHS) {
       if (!fs.existsSync(mangaRoot)) continue;
@@ -746,8 +758,8 @@ const server = http.createServer((req, res) => {
           e.name.toLowerCase() === (chapter || "").toLowerCase() ||
           e.name === slug ||
           e.name.toLowerCase() === (slug || "").toLowerCase() ||
-          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase() ||
-          e.name.replace(/\.[^/.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase()
+          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === cleanSlug ||
+          e.name.replace(/\.[^/.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-") === cleanSlug
         ));
         if (rootArchive) {
           const p = path.join(mangaRoot, rootArchive.name);
@@ -757,7 +769,7 @@ const server = http.createServer((req, res) => {
         const targetFolder = entries.find((e) => isDirEntry(e, mangaRoot) && (
           e.name === slug ||
           e.name.toLowerCase() === (slug || "").toLowerCase() ||
-          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase()
+          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === cleanSlug
         ));
 
         if (targetFolder) {

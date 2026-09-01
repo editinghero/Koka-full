@@ -180,9 +180,12 @@ function RootComponent() {
 
 function AuthGate({ children }: { children: ReactNode }) {
   const { user, ready, reload } = useSession();
-  const [locked, setLocked] = useState(() => isLocked());
+  const [locked, setLocked] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    setLocked(isLocked());
     applyThemeFromSettings();
     void boot();
   }, []);
@@ -193,6 +196,14 @@ function AuthGate({ children }: { children: ReactNode }) {
     window.addEventListener("koka:lock", onLock);
     return () => window.removeEventListener("koka:lock", onLock);
   }, [user]);
+
+  // Always render children (AppShell) wrapper so SSR and client trees match.
+  // Individual branches inside are hidden/shown via client state after mount.
+  if (!mounted) {
+    // Server and first paint: render the shell so tree shape matches.
+    // suppressHydrationWarning allows minor attr differences (theme classes etc.)
+    return <>{children}</>;
+  }
 
   if (!ready && !user) {
     return <div className="min-h-screen bg-background" />;

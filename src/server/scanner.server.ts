@@ -662,6 +662,47 @@ export async function scanLibrary(): Promise<LibraryScanState> {
           }
         }
       }
+
+      // Scan standalone files placed directly in manga/novel root
+      const rootArchives = rootEntries.filter(
+        (f) =>
+          isFileEntry(f, mangaRoot) &&
+          ARCHIVE_EXTENSIONS.has(extname(f.name).toLowerCase()),
+      );
+      for (const file of rootArchives) {
+        const baseName = parse(file.name).name;
+        const slug = toSlug(baseName);
+        const ext = extname(file.name).toLowerCase();
+        let format: MangaChapter["format"] = "zip";
+        if (ext === ".cbz") format = "cbz";
+        else if (ext === ".zip") format = "zip";
+        else if (ext === ".cbr" || ext === ".rar") format = "cbr";
+        else if (ext === ".cb7" || ext === ".7z") format = "cb7";
+        else if (ext === ".cbt" || ext === ".tar") format = "cbt";
+        else if (ext === ".pdf") format = "pdf";
+        else if (ext === ".epub") format = "epub";
+
+        const mediaId =
+          mangaLinks?.get(slug) ?? mangaLinks?.get(baseName.toLowerCase());
+
+        scannedManga.push({
+          slug,
+          folderName: baseName,
+          folderPath: join(mangaRoot, file.name),
+          chapters: [
+            {
+              file: file.name,
+              label: baseName,
+              relativePath: file.name,
+              format,
+            },
+          ],
+          chapterCount: 1,
+          hasLocalPoster: false,
+          hasLocalBanner: false,
+          mediaId,
+        });
+      }
     }
   } catch (err) {
     console.error("Error scanning media library:", err);
