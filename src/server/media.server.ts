@@ -8,6 +8,89 @@ import {
 import { extname, join, parse, resolve } from "node:path";
 import AdmZip from "adm-zip";
 import { getScanState, naturalSort, naturalSortPages } from "./scanner.server";
+
+function getZipDirname(path: string) {
+  const parts = path.split("/");
+  parts.pop();
+  return parts.length > 0 ? parts.join("/") + "/" : "";
+}
+
+function resolveZipPath(dir: string, href: string) {
+  // EPUB URLs may contain query strings/fragments and percent-encoding.
+  const raw = href.trim();
+  const hashIndex = raw.indexOf("#");
+  const withoutFragment = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
+  const queryIndex = withoutFragment.indexOf("?");
+  const pathOnly = queryIndex >= 0 ? withoutFragment.slice(0, queryIndex) : withoutFragment;
+
+  let decoded = pathOnly;
+  try {
+    decoded = decodeURIComponent(pathOnly);
+  } catch {
+    // Keep the raw path if malformed percent-encoding is present.
+  }
+
+  const parts = (dir + decoded).split("/");
+  const resolved: string[] = [];
+  for (const part of parts) {
+    if (part === "..") {
+      resolved.pop();
+    } else if (part !== "." && part !== "") {
+      resolved.push(part);
+    }
+  }
+  return resolved.join("/");
+}
+
+function parseEpubSpine(zip: AdmZip): string[] {
+  const containerEntry = zip.getEntry("META-INF/container.xml");
+  if (!containerEntry) throw new Error("Not a valid EPUB");
+  const containerXml = containerEntry.getData().toString("utf-8");
+
+  const rootfileMatch = containerXml.match(
+    /<rootfile[^>]+full-path=["']([^"']+)["']/i,
+  );
+  if (!rootfileMatch) throw new Error("No rootfile found in EPUB");
+  const opfPath = rootfileMatch[1];
+
+  const opfEntry = zip.getEntry(opfPath);
+  if (!opfEntry) throw new Error("OPF file not found");
+  const opfContent = opfEntry.getData().toString("utf-8");
+
+  const manifestMatch = opfContent.match(/<manifest>([\s\S]*?)<\/manifest>/i);
+  const manifestItems: Record<string, string> = {};
+  const manifestContent = manifestMatch ? manifestMatch[1] : opfContent;
+
+  const itemRegex = /<item\s+([^>]+)>/gi;
+  let match;
+  while ((match = itemRegex.exec(manifestContent)) !== null) {
+    const attrs = match[1];
+    const idMatch = attrs.match(/id=["']([^"']+)["']/i);
+    const hrefMatch = attrs.match(/href=["']([^"']+)["']/i);
+    if (idMatch && hrefMatch) {
+      manifestItems[idMatch[1]] = hrefMatch[1];
+    }
+  }
+
+  const spineMatch = opfContent.match(/<spine[^>]*>([\s\S]*?)<\/spine>/i);
+  const spineItems: string[] = [];
+  if (spineMatch) {
+    const itemrefRegex = /<itemref\s+([^>]+)>/gi;
+    while ((match = itemrefRegex.exec(spineMatch[1])) !== null) {
+      const attrs = match[1];
+      const idrefMatch = attrs.match(/idref=["']([^"']+)["']/i);
+      if (idrefMatch) {
+        const idref = idrefMatch[1];
+        const href = manifestItems[idref];
+        if (href) {
+          spineItems.push(resolveZipPath(getZipDirname(opfPath), href));
+        }
+      }
+    }
+  }
+
+  return spineItems;
+}
 import { isSafePath } from "./path-guard.server";
 
 const IMAGE_EXTENSIONS = new Set([
@@ -55,6 +138,13 @@ const MIME_MAP: Record<string, string> = {
   ".xhtml": "application/xhtml+xml",
   ".htm": "text/html",
   ".txt": "text/plain",
+  ".css": "text/css",
+  ".svg": "image/svg+xml",
+  ".xml": "application/xml",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
 };
 
 export interface MangaChapterPageInfo {
@@ -96,6 +186,96 @@ function parseTarEntries(buffer: Buffer): { name: string; size: number; dataOffs
   }
   entries.sort((a, b) => naturalSortPages(a.name, b.name));
   return entries;
+}
+
+function isEpubHtmlMime(mimeType: string) {
+  return mimeType === "text/html" || mimeType === "application/xhtml+xml";
+}
+
+function isExternalEpubUrl(value: string) {
+  return /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(value) || value.startsWith("#");
+}
+
+function buildEpubResourceUrl(slug: string, chapterFile: string, resourcePath: string) {
+  const params = new URLSearchParams({
+    slug,
+    chapter: chapterFile,
+    epubResource: resourcePath,
+  });
+  return `/api/stream/manga-page?${params.toString()}`;
+}
+
+function rewriteCssUrls(css: string, baseDir: string, slug: string, chapterFile: string) {
+  return css.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi, (match, quote, value) => {
+    const raw = String(value).trim();
+    if (!raw || isExternalEpubUrl(raw) || raw.startsWith("data:")) return match;
+    const resourcePath = resolveZipPath(baseDir, raw);
+    return `url(${quote}${buildEpubResourceUrl(slug, chapterFile, resourcePath)}${quote})`;
+  });
+}
+
+function rewriteEpubHtmlResources(html: string, currentFile: string, slug: string, chapterFile: string) {
+  const baseDir = getZipDirname(currentFile);
+
+  html = html.replace(
+    /<(img|image|source|audio|video|track|iframe|object|embed|link)\b([^>]*)>/gis,
+    (match, tag, attrs) => {
+      const tagName = String(tag).toLowerCase();
+      const isStylesheet =
+        tagName === "link" && /\brel\s*=\s*["'][^"']*\bstylesheet\b[^"']*["']/i.test(attrs);
+
+      if (tagName === "link" && !isStylesheet) return match;
+
+      let rewritten = attrs.replace(
+        /\b(src|href)\s*=\s*(["'])(.*?)\2/gi,
+        (attrMatch: string, attrName: string, quote: string, value: string) => {
+          if (isExternalEpubUrl(value) || value.startsWith("data:") || value.startsWith("#")) {
+            return attrMatch;
+          }
+          const resourcePath = resolveZipPath(baseDir, value);
+          return `${attrName}=${quote}${buildEpubResourceUrl(slug, chapterFile, resourcePath)}${quote}`;
+        },
+      );
+
+      rewritten = rewritten.replace(
+        /\bsrcset\s*=\s*(["'])(.*?)\1/gi,
+        (attrMatch: string, quote: string, value: string) => {
+          const entries = String(value)
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean)
+            .map((entry) => {
+              const parts = entry.split(/\s+/);
+              const rawUrl = parts.shift() || "";
+              if (!rawUrl || isExternalEpubUrl(rawUrl) || rawUrl.startsWith("data:") || rawUrl.startsWith("#")) {
+                return entry;
+              }
+              const resourcePath = resolveZipPath(baseDir, rawUrl);
+              return [buildEpubResourceUrl(slug, chapterFile, resourcePath), ...parts].join(" ");
+            });
+          return `srcset=${quote}${entries.join(", ")}${quote}`;
+        },
+      );
+
+      if (/\bstyle\s*=\s*["']/i.test(rewritten)) {
+        rewritten = rewritten.replace(
+          /\bstyle\s*=\s*(["'])([\s\S]*?)\1/gi,
+          (attrMatch: string, quote: string, css: string) =>
+            `style=${quote}${rewriteCssUrls(css, baseDir, slug, chapterFile)}${quote}`,
+        );
+      }
+
+      return `<${tag}${rewritten}>`;
+    },
+  );
+
+  // Cover/resource links can also appear in inline style blocks.
+  html = html.replace(
+    /<style\b[^>]*>([\s\S]*?)<\/style>/gi,
+    (match, css) => `<style>${rewriteCssUrls(css, baseDir, slug, chapterFile)}</style>`,
+  );
+
+  return html;
 }
 
 export function getMimeType(filePath: string): string {
@@ -180,26 +360,17 @@ export async function getMangaChapterPages(
   if (chapter.format === "epub" || chapterPath.toLowerCase().endsWith(".epub")) {
     try {
       const zip = new AdmZip(chapterPath);
-      const entries = zip
-        .getEntries()
-        .filter((e) => !e.isDirectory && !e.entryName.startsWith("__MACOSX"))
-        .sort((a, b) => naturalSortPages(a.entryName, b.entryName));
-
-      const xhtmlEntries = entries.filter((e) =>
-        /\.(xhtml|html|htm)$/i.test(e.entryName) &&
-        !e.entryName.toLowerCase().includes("toc") &&
-        !e.entryName.toLowerCase().includes("nav"),
+      const spineItems = parseEpubSpine(zip);
+      
+      const readableSpineItems = spineItems.filter((e) =>
+        /\.(xhtml|html|htm)$/i.test(e),
       );
 
-      const imageEntries = entries.filter((e) =>
-        IMAGE_EXTENSIONS.has(extname(e.entryName).toLowerCase()),
-      );
-
-      const chosenEntries = xhtmlEntries.length > 0 ? xhtmlEntries : (imageEntries.length > 0 ? imageEntries : entries);
+      const chosenEntries = readableSpineItems.length > 0 ? readableSpineItems : spineItems;
 
       return {
         pageCount: chosenEntries.length,
-        pages: chosenEntries.map((e, index) => ({ index, name: parse(e.entryName).base })),
+        pages: chosenEntries.map((e, index) => ({ index, name: parse(e).base })),
         isEpub: true,
         format: "epub",
       };
@@ -298,6 +469,7 @@ export async function getMangaPageBuffer(
   slug: string,
   chapterFile: string,
   pageIndex: number,
+  epubResourcePath?: string | null,
 ): Promise<{ buffer: Buffer; mimeType: string } | null> {
   const manga = findMangaBySlug(slug);
   if (!manga) return null;
@@ -337,23 +509,41 @@ export async function getMangaPageBuffer(
 
   if (chapter.format === "epub" || chapterPath.toLowerCase().endsWith(".epub")) {
     const zip = new AdmZip(chapterPath);
-    const entries = zip
-      .getEntries()
-      .filter((e) => !e.isDirectory && !e.entryName.startsWith("__MACOSX"))
-      .sort((a, b) => naturalSortPages(a.entryName, b.entryName));
+    
+    if (epubResourcePath) {
+      const entry = zip.getEntry(epubResourcePath);
+      if (!entry) return null;
+      return { buffer: entry.getData(), mimeType: getMimeType(entry.entryName) };
+    }
 
-    const xhtmlEntries = entries.filter((e) =>
-      /\.(xhtml|html|htm)$/i.test(e.entryName) &&
-      !e.entryName.toLowerCase().includes("toc") &&
-      !e.entryName.toLowerCase().includes("nav"),
+    const spineItems = parseEpubSpine(zip);
+    const readableSpineItems = spineItems.filter((e) =>
+      /\.(xhtml|html|htm)$/i.test(e),
     );
+    const chosenEntries = readableSpineItems.length > 0 ? readableSpineItems : spineItems;
+    const currentFile = chosenEntries[pageIndex] || spineItems[pageIndex];
+    if (!currentFile) return null;
 
-    const chosenEntries = xhtmlEntries.length > 0 ? xhtmlEntries : entries;
-    const entry = chosenEntries[pageIndex] || entries[pageIndex];
+    const entry = zip.getEntry(currentFile);
     if (!entry) return null;
 
-    const buffer = entry.getData();
-    return { buffer, mimeType: getMimeType(entry.entryName) };
+    let buffer = entry.getData();
+    const mimeType = getMimeType(entry.entryName);
+    
+    // Rewrite image sources in HTML to point to our stream endpoint
+    if (isEpubHtmlMime(mimeType)) {
+      buffer = Buffer.from(
+        rewriteEpubHtmlResources(buffer.toString("utf-8"), currentFile, slug, chapterFile),
+        "utf-8",
+      );
+    } else if (mimeType === "text/css") {
+      buffer = Buffer.from(
+        rewriteCssUrls(buffer.toString("utf-8"), getZipDirname(currentFile), slug, chapterFile),
+        "utf-8",
+      );
+    }
+
+    return { buffer, mimeType };
   }
 
   if (chapter.format === "cbt" || chapterPath.toLowerCase().endsWith(".cbt") || chapterPath.toLowerCase().endsWith(".tar")) {

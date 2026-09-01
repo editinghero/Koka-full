@@ -29,17 +29,31 @@ function getFreshConfig() {
     ? configFileName
     : path.resolve(process.cwd(), configFileName);
 
-  let cfg = {};
-  if (fs.existsSync(configPath)) {
-    try {
-      const raw = fs.readFileSync(configPath, "utf-8");
-      cfg = JSON.parse(raw);
-    } catch (err) {
-      console.warn("Could not parse config file, using defaults:", err.message);
+  if (!fs.existsSync(configPath)) {
+    throw new Error(`Required config file not found: ${configPath}`);
+  }
+
+  let cfg;
+  try {
+    cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  } catch (err) {
+    throw new Error(`Invalid JSON in config file ${configPath}: ${err.message}`);
+  }
+
+  if (!cfg || typeof cfg !== "object" || Array.isArray(cfg)) {
+    throw new Error(`Invalid config file ${configPath}: root must be a JSON object`);
+  }
+
+  for (const key of ["deviceId", "nodeName", "secret", "animePath", "mangaPath"]) {
+    if (typeof cfg[key] !== "string" || !cfg[key].trim()) {
+      throw new Error(`Invalid config file ${configPath}: "${key}" is required`);
     }
   }
 
-  const defaultId = os.hostname().toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+  if (!Number.isInteger(Number(cfg.port)) || Number(cfg.port) < 1 || Number(cfg.port) > 65535) {
+    throw new Error(`Invalid config file ${configPath}: "port" must be 1-65535`);
+  }
+
 
   const animePath = path.resolve(process.cwd(), process.env.ANIME_PATH || cfg.animePath || "./anime");
   const mangaPath = path.resolve(process.cwd(), process.env.MANGA_PATH || cfg.mangaPath || "./manga");
@@ -57,8 +71,13 @@ function getFreshConfig() {
     ? cfg.novelSources.map((p) => (path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)))
     : [];
 
-  const allAnimePaths = Array.from(new Set([animePath, ...animeSources]));
-  const allMangaPaths = Array.from(new Set([mangaPath, ...(novelPath ? [novelPath] : []), ...mangaSources, ...novelSources]));
+  // Library roots: only the configured library folders.
+  // Source folders are intentionally NOT added to the library scanner.
+  const allAnimePaths = [animePath];
+  const allMangaPaths = Array.from(new Set([
+    mangaPath,
+    ...(novelPath ? [novelPath] : []),
+  ]));
 
   return {
     PORT: parseInt(process.env.PORT || String(cfg.port || 3399), 10),

@@ -231,12 +231,13 @@ export async function handleMediaStreamRequest(
     const rawChapter = url.searchParams.get("chapter");
     const pageStr = url.searchParams.get("page");
     const pageIndex = pageStr ? parseInt(pageStr, 10) : 0;
+    const epubResource = url.searchParams.get("epubResource");
 
     if (
       !slug ||
       !rawChapter ||
       isMaliciousPathSegment(slug) ||
-      isNaN(pageIndex)
+      (isNaN(pageIndex) && !epubResource)
     ) {
       return new Response("Invalid or missing parameters", { status: 400 });
     }
@@ -256,7 +257,7 @@ export async function handleMediaStreamRequest(
         state = await scanLibrary();
       }
 
-      const result = await getMangaPageBuffer(slug, chapter, pageIndex);
+      const result = await getMangaPageBuffer(slug, chapter, pageIndex, epubResource);
       if (!result) {
         // Log what we have to diagnose mismatches
         const allSlugs = getScanState().manga.map((m) => `${m.slug} (${m.folderName})`).join(", ");

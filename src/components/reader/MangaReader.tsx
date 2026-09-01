@@ -178,6 +178,12 @@ export function MangaReader({
   const [isEpubLoading, setIsEpubLoading] = useState<boolean>(false);
   const [novelFontSize, setNovelFontSize] = useState<number>(18);
 
+  const getEpubScrollStorageKey = useCallback(
+    (chapter = chapterFile, section = currentPage) =>
+      `koka:epub:scroll:${slug}:${chapter}:${section}`,
+    [slug, chapterFile, currentPage],
+  );
+
   // Reset pan offset when zoom returns to 100% or mode/page changes
   useEffect(() => {
     if (zoomLevel <= 100) {
@@ -298,27 +304,32 @@ export function MangaReader({
     }
   };
 
-  // Sync scroll accumulator and save webtoon reading position
+  // Sync scroll and persist reading position for Webtoon and EPUB.
   const handleScroll = () => {
-    if (scrollContainerRef.current) {
-      scrollAccumulatorRef.current = scrollContainerRef.current.scrollTop;
-      if (
-        mode === "webtoon" &&
-        slug &&
-        chapterFile &&
-        scrollContainerRef.current.scrollHeight > 0
-      ) {
-        const pct =
-          scrollContainerRef.current.scrollTop /
-          scrollContainerRef.current.scrollHeight;
-        try {
-          localStorage.setItem(
-            `koka:manga:scroll:${slug}:${chapterFile}`,
-            pct.toString(),
-          );
-        } catch {
-          /* ignore */
-        }
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    scrollAccumulatorRef.current = container.scrollTop;
+
+    if (mode === "webtoon" && slug && chapterFile && container.scrollHeight > 0) {
+      const pct = container.scrollTop / container.scrollHeight;
+      try {
+        localStorage.setItem(
+          `koka:manga:scroll:${slug}:${chapterFile}`,
+          pct.toString(),
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (isEpub && slug && chapterFile && container.scrollHeight > container.clientHeight) {
+      const maxScroll = Math.max(1, container.scrollHeight - container.clientHeight);
+      const pct = Math.min(1, Math.max(0, container.scrollTop / maxScroll));
+      try {
+        localStorage.setItem(getEpubScrollStorageKey(), pct.toString());
+      } catch {
+        /* ignore */
       }
     }
   };
@@ -432,6 +443,9 @@ export function MangaReader({
   useEffect(() => {
     if (!isEpub || isLoading) return;
     setIsEpubLoading(true);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
     const url = buildStreamUrl("/api/stream/manga-page", {
       slug,
       chapter: chapterFile,
@@ -449,6 +463,32 @@ export function MangaReader({
         setIsEpubLoading(false);
       });
   }, [isEpub, isLoading, slug, chapterFile, currentPage]);
+
+  // Restore EPUB scroll position within the current spine section after content loads.
+  useEffect(() => {
+    if (!isEpub || isLoading || isEpubLoading || !epubContent || !scrollContainerRef.current) return;
+
+    let cancelled = false;
+    const restore = () => {
+      if (cancelled || !scrollContainerRef.current) return;
+      try {
+        const saved = localStorage.getItem(getEpubScrollStorageKey());
+        const pct = saved ? Number.parseFloat(saved) : 0;
+        const maxScroll = Math.max(0, scrollContainerRef.current.scrollHeight - scrollContainerRef.current.clientHeight);
+        scrollContainerRef.current.scrollTop = Number.isFinite(pct)
+          ? Math.min(maxScroll, Math.max(0, pct * maxScroll))
+          : 0;
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const timer = window.setTimeout(restore, 60);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [isEpub, isLoading, isEpubLoading, epubContent, getEpubScrollStorageKey]);
 
   // Save reading progress
   const saveProgress = useCallback(
@@ -1006,59 +1046,63 @@ export function MangaReader({
 
             <div className="h-4 w-px bg-border mx-0.5" />
 
-            {/* Mobile View: Mode Dropdown Trigger with ChevronDown */}
-            <div className="sm:hidden">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setShowMobileModeMenu((prev) => !prev);
-                  setShowSpeedMenu(false);
-                  setShowMoreMenu(false);
-                  setShowChapterMenu(false);
-                }}
-                title="Select Reading Mode"
-              >
-                {mode === "webtoon" && <Scroll className="w-4 h-4" />}
-                {mode === "single" && <FileText className="w-4 h-4" />}
-                {mode === "double" && <Columns2 className="w-4 h-4" />}
-              </Button>
-            </div>
+            {!isEpub && (
+              <>
+                {/* Mobile View: Mode Dropdown Trigger with ChevronDown */}
+                <div className="sm:hidden">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setShowMobileModeMenu((prev) => !prev);
+                      setShowSpeedMenu(false);
+                      setShowMoreMenu(false);
+                      setShowChapterMenu(false);
+                    }}
+                    title="Select Reading Mode"
+                  >
+                    {mode === "webtoon" && <Scroll className="w-4 h-4" />}
+                    {mode === "single" && <FileText className="w-4 h-4" />}
+                    {mode === "double" && <Columns2 className="w-4 h-4" />}
+                  </Button>
+                </div>
 
-            {/* Desktop View: Horizontal Reader Mode Selector */}
-            <div className="hidden sm:flex items-center bg-muted/60 p-0.5 rounded-full border border-border/60">
-              <Button
-                variant={mode === "webtoon" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-7 px-2.5 rounded-full text-[11px] font-medium"
-                onClick={() => handleModeSwitch("webtoon")}
-                title="Continuous Webtoon Scroll"
-              >
-                <Scroll className="w-3.5 h-3.5 sm:mr-1" />
-                <span>Webtoon</span>
-              </Button>
-              <Button
-                variant={mode === "single" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-7 px-2.5 rounded-full text-[11px] font-medium"
-                onClick={() => handleModeSwitch("single")}
-                title="Single Page Mode"
-              >
-                <FileText className="w-3.5 h-3.5 sm:mr-1" />
-                <span>Single</span>
-              </Button>
-              <Button
-                variant={mode === "double" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-7 px-2.5 rounded-full text-[11px] font-medium"
-                onClick={() => handleModeSwitch("double")}
-                title="Double Page Mode"
-              >
-                <Columns2 className="w-3.5 h-3.5 sm:mr-1" />
-                <span>Double</span>
-              </Button>
-            </div>
+                {/* Desktop View: Horizontal Reader Mode Selector */}
+                <div className="hidden sm:flex items-center bg-muted/60 p-0.5 rounded-full border border-border/60">
+                  <Button
+                    variant={mode === "webtoon" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2.5 rounded-full text-[11px] font-medium"
+                    onClick={() => handleModeSwitch("webtoon")}
+                    title="Continuous Webtoon Scroll"
+                  >
+                    <Scroll className="w-3.5 h-3.5 sm:mr-1" />
+                    <span>Webtoon</span>
+                  </Button>
+                  <Button
+                    variant={mode === "single" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2.5 rounded-full text-[11px] font-medium"
+                    onClick={() => handleModeSwitch("single")}
+                    title="Single Page Mode"
+                  >
+                    <FileText className="w-3.5 h-3.5 sm:mr-1" />
+                    <span>Single</span>
+                  </Button>
+                  <Button
+                    variant={mode === "double" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2.5 rounded-full text-[11px] font-medium"
+                    onClick={() => handleModeSwitch("double")}
+                    title="Double Page Mode"
+                  >
+                    <Columns2 className="w-3.5 h-3.5 sm:mr-1" />
+                    <span>Double</span>
+                  </Button>
+                </div>
+              </>
+            )}
 
             {/* Auto Scroll Controls for Webtoon Mode */}
             {mode === "webtoon" && (
@@ -1105,7 +1149,7 @@ export function MangaReader({
             )}
 
             {/* Reading Direction Toggle (for paged mode) */}
-            {mode !== "webtoon" && (
+            {!isEpub && mode !== "webtoon" && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -1349,35 +1393,37 @@ export function MangaReader({
             </div>
 
             {/* Section 1: Image Sizing / Fit Mode */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Image Fit
-              </span>
-              <div className="grid grid-cols-2 gap-1 text-xs">
-                {(
-                  [
-                    ["contain", "Fit Screen"],
-                    ["width", "Fit Width"],
-                    ["height", "Fit Height"],
-                    ["original", "1:1 Original"],
-                  ] as const
-                ).map(([fKey, fLabel]) => (
-                  <button
-                    key={fKey}
-                    onClick={() => updatePreference({ fit: fKey })}
-                    className={cn(
-                      "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
-                      fit === fKey
-                        ? "bg-primary text-primary-foreground font-semibold"
-                        : "hover:bg-accent text-foreground",
-                    )}
-                  >
-                    <span>{fLabel}</span>
-                    {fit === fKey && <Check className="w-3 h-3 ml-1" />}
-                  </button>
-                ))}
+            {!isEpub && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Image Fit
+                </span>
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  {(
+                    [
+                      ["contain", "Fit Screen"],
+                      ["width", "Fit Width"],
+                      ["height", "Fit Height"],
+                      ["original", "1:1 Original"],
+                    ] as const
+                  ).map(([fKey, fLabel]) => (
+                    <button
+                      key={fKey}
+                      onClick={() => updatePreference({ fit: fKey })}
+                      className={cn(
+                        "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
+                        fit === fKey
+                          ? "bg-primary text-primary-foreground font-semibold"
+                          : "hover:bg-accent text-foreground",
+                      )}
+                    >
+                      <span>{fLabel}</span>
+                      {fit === fKey && <Check className="w-3 h-3 ml-1" />}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Section 2: Zoom Slider */}
             <div className="space-y-1.5 border-t border-border/80 pt-2">
@@ -1483,76 +1529,80 @@ export function MangaReader({
             </div>
 
             {/* Section 4: Color Modes Grid */}
-            <div className="space-y-1.5 pt-2 border-t border-border/80">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Color Tone
-              </span>
-              <div className="grid grid-cols-2 gap-1 text-xs">
-                {(
-                  [
-                    ["default", "Normal"],
-                    ["night", "Night Mode"],
-                    ["sepia", "Vintage Sepia"],
-                    ["invert", "Invert Dark"],
-                  ] as const
-                ).map(([cKey, cLabel]) => (
-                  <button
-                    key={cKey}
-                    onClick={() =>
-                      updatePreference({ filterMode: cKey })
-                    }
-                    className={cn(
-                      "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
-                      filterMode === cKey
-                        ? "bg-primary text-primary-foreground font-semibold"
-                        : "hover:bg-accent text-foreground",
-                    )}
-                  >
-                    <span>{cLabel}</span>
-                    {filterMode === cKey && (
-                      <Check className="w-3 h-3 ml-1" />
-                    )}
-                  </button>
-                ))}
+            {!isEpub && (
+              <div className="space-y-1.5 pt-2 border-t border-border/80">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Color Tone
+                </span>
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  {(
+                    [
+                      ["default", "Normal"],
+                      ["night", "Night Mode"],
+                      ["sepia", "Vintage Sepia"],
+                      ["invert", "Invert Dark"],
+                    ] as const
+                  ).map(([cKey, cLabel]) => (
+                    <button
+                      key={cKey}
+                      onClick={() =>
+                        updatePreference({ filterMode: cKey })
+                      }
+                      className={cn(
+                        "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
+                        filterMode === cKey
+                          ? "bg-primary text-primary-foreground font-semibold"
+                          : "hover:bg-accent text-foreground",
+                      )}
+                    >
+                      <span>{cLabel}</span>
+                      {filterMode === cKey && (
+                        <Check className="w-3 h-3 ml-1" />
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Section 5: Toggles */}
-            <div className="grid grid-cols-2 gap-1 pt-2 border-t border-border/80">
-              <button
-                onClick={() =>
-                  updatePreference({ grayscale: !grayscale })
-                }
-                className={cn(
-                  "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
-                  grayscale
-                    ? "bg-secondary font-semibold text-foreground border border-border"
-                    : "hover:bg-accent text-muted-foreground",
-                )}
-              >
-                <span>Grayscale</span>
-                {grayscale && (
-                  <Check className="w-3 h-3 text-primary" />
-                )}
-              </button>
+            {!isEpub && (
+              <div className="grid grid-cols-2 gap-1 pt-2 border-t border-border/80">
+                <button
+                  onClick={() =>
+                    updatePreference({ grayscale: !grayscale })
+                  }
+                  className={cn(
+                    "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
+                    grayscale
+                      ? "bg-secondary font-semibold text-foreground border border-border"
+                      : "hover:bg-accent text-muted-foreground",
+                  )}
+                >
+                  <span>Grayscale</span>
+                  {grayscale && (
+                    <Check className="w-3 h-3 text-primary" />
+                  )}
+                </button>
 
-              <button
-                onClick={() =>
-                  updatePreference({ pageTexture: !pageTexture })
-                }
-                className={cn(
-                  "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
-                  pageTexture
-                    ? "bg-secondary font-semibold text-foreground border border-border"
-                    : "hover:bg-accent text-muted-foreground",
-                )}
-              >
-                <span>Paper Grain</span>
-                {pageTexture && (
-                  <Check className="w-3 h-3 text-primary" />
-                )}
-              </button>
-            </div>
+                <button
+                  onClick={() =>
+                    updatePreference({ pageTexture: !pageTexture })
+                  }
+                  className={cn(
+                    "px-2.5 py-1.5 rounded-lg text-left font-medium transition-colors text-xs flex items-center justify-between",
+                    pageTexture
+                      ? "bg-secondary font-semibold text-foreground border border-border"
+                      : "hover:bg-accent text-muted-foreground",
+                  )}
+                >
+                  <span>Paper Grain</span>
+                  {pageTexture && (
+                    <Check className="w-3 h-3 text-primary" />
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}

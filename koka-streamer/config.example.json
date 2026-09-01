@@ -4,5 +4,6 @@
   "nodeName": "My Streaming Node",
   "secret": "your_stream_secret_here",
   "animePath": "./anime",
-  "mangaPath": "./manga"
+  "mangaPath": "./manga",
+  "novelPath": "./novel"
 }
