@@ -486,8 +486,17 @@ export function MangaReader({
           });
 
           // SVG EPUB pages can reference raster images through href/xlink:href.
-          doc.querySelectorAll("image[href], image[xlink\:href]").forEach((element) => {
-            const attr = element.hasAttribute("href") ? "href" : "xlink:href";
+          // Do not use a CSS selector for xlink:href: some browsers reject the
+          // colon selector and would abort the whole rewrite, leaving the
+          // original ../Images/... URL untouched.
+          Array.from(doc.getElementsByTagName("image")).forEach((element) => {
+            const attr = element.hasAttribute("href")
+              ? "href"
+              : element.hasAttribute("xlink:href")
+                ? "xlink:href"
+                : null;
+            if (!attr) return;
+
             const src = element.getAttribute(attr);
             if (!src || /^(?:data:|blob:|https?:|\/\/)/i.test(src)) return;
 
