@@ -13,13 +13,15 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
-// Load configuration from config.json, custom config file, or environment variables
+// Load ONLY the configured config.json (or an explicitly supplied config path).
+// A missing, invalid, or incomplete config is fatal: never fall back to localhost/default identity.
 function getFreshConfig() {
   const args = process.argv.slice(2);
   let configArg = null;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--config" && args[i + 1]) {
       configArg = args[i + 1];
+      break;
     }
   }
 
@@ -44,51 +46,66 @@ function getFreshConfig() {
     throw new Error(`Invalid config file ${configPath}: root must be a JSON object`);
   }
 
-  for (const key of ["deviceId", "nodeName", "secret", "animePath", "mangaPath"]) {
+  const requiredString = ["deviceId", "nodeName", "secret", "animePath", "mangaPath"];
+  for (const key of requiredString) {
     if (typeof cfg[key] !== "string" || !cfg[key].trim()) {
-      throw new Error(`Invalid config file ${configPath}: "${key}" is required`);
+      throw new Error(`Invalid config: ${key} is required and must be a non-empty string`);
     }
   }
 
-  if (!Number.isInteger(Number(cfg.port)) || Number(cfg.port) < 1 || Number(cfg.port) > 65535) {
-    throw new Error(`Invalid config file ${configPath}: "port" must be 1-65535`);
+  const port = Number(cfg.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("Invalid config: port must be an integer between 1 and 65535");
   }
 
+  const animePath = path.isAbsolute(cfg.animePath)
+    ? path.resolve(cfg.animePath)
+    : path.resolve(process.cwd(), cfg.animePath);
+  const mangaPath = path.isAbsolute(cfg.mangaPath)
+    ? path.resolve(cfg.mangaPath)
+    : path.resolve(process.cwd(), cfg.mangaPath);
 
-  const animePath = path.resolve(process.cwd(), process.env.ANIME_PATH || cfg.animePath || "./anime");
-  const mangaPath = path.resolve(process.cwd(), process.env.MANGA_PATH || cfg.mangaPath || "./manga");
-  const novelPath = (process.env.NOVEL_PATH || cfg.novelPath)
-    ? path.resolve(process.cwd(), process.env.NOVEL_PATH || cfg.novelPath)
-    : null;
+  if (!fs.existsSync(animePath) || !fs.statSync(animePath).isDirectory()) {
+    throw new Error(`Invalid config: animePath does not exist or is not a directory: ${animePath}`);
+  }
+  if (!fs.existsSync(mangaPath) || !fs.statSync(mangaPath).isDirectory()) {
+    throw new Error(`Invalid config: mangaPath does not exist or is not a directory: ${mangaPath}`);
+  }
 
-  const animeSources = Array.isArray(cfg.animeSources)
-    ? cfg.animeSources.map((p) => (path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)))
-    : [];
-  const mangaSources = Array.isArray(cfg.mangaSources)
-    ? cfg.mangaSources.map((p) => (path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)))
-    : [];
-  const novelSources = Array.isArray(cfg.novelSources)
-    ? cfg.novelSources.map((p) => (path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)))
-    : [];
+  const resolveSources = (value, key) => {
+    if (value === undefined) return [];
+    if (!Array.isArray(value)) throw new Error(`Invalid config: ${key} must be an array`);
+    return value.map((p, i) => {
+      if (typeof p !== "string" || !p.trim()) {
+        throw new Error(`Invalid config: ${key}[${i}] must be a non-empty string`);
+      }
+      return path.isAbsolute(p) ? path.resolve(p) : path.resolve(process.cwd(), p);
+    });
+  };
 
-  // Library roots: only the configured library folders.
-  // Source folders are intentionally NOT added to the library scanner.
-  const allAnimePaths = [animePath];
-  const allMangaPaths = Array.from(new Set([
-    mangaPath,
-    ...(novelPath ? [novelPath] : []),
-  ]));
+  const animeSources = resolveSources(cfg.animeSources, "animeSources");
+  const novelPath = cfg.novelPath ? (path.isAbsolute(cfg.novelPath) ? path.resolve(cfg.novelPath) : path.resolve(process.cwd(), cfg.novelPath)) : null;
+  if (novelPath && (!fs.existsSync(novelPath) || !fs.statSync(novelPath).isDirectory())) {
+    throw new Error(`Invalid config: novelPath does not exist or is not a directory: ${novelPath}`);
+  }
+  // mangaSources are source/import locations only; they are NOT additional library roots.
+  const mangaSources = resolveSources(cfg.mangaSources, "mangaSources");
 
   return {
-    PORT: parseInt(process.env.PORT || String(cfg.port || 3399), 10),
-    DEVICE_ID: (process.env.KOKA_DEVICE_ID || cfg.deviceId || defaultId).trim(),
-    NODE_NAME: process.env.KOKA_NODE_NAME || cfg.nodeName || `${os.hostname()} (${os.platform()})`,
-    STREAM_SECRET: process.env.KOKA_STREAM_SECRET || cfg.secret || "",
+    PORT: port,
+    DEVICE_ID: cfg.deviceId.trim(),
+    NODE_NAME: cfg.nodeName.trim(),
+    STREAM_SECRET: cfg.secret,
     ANIME_PATH: animePath,
     MANGA_PATH: mangaPath,
     NOVEL_PATH: novelPath,
-    ANIME_PATHS: allAnimePaths,
-    MANGA_PATHS: allMangaPaths,
+    ANIME_PATHS: [animePath],
+    // novelPath is an additional Manga library root, not a separate frontend type.
+    MANGA_PATHS: Array.from(new Set([
+      mangaPath,
+      ...(novelPath ? [novelPath] : []),
+    ])),
+    MANGA_SOURCES: mangaSources,
     NODE_TYPE: os.platform() === "android" || process.env.PREFIX?.includes("termux") ? "mobile" : "desktop",
     CONFIG_LOADED: configPath,
   };
@@ -154,7 +171,7 @@ function isMaliciousPathSegment(segment) {
     if (/^\.(env|git|ssh|config|aws|bash|npm|profile|htaccess|htpasswd)/i.test(path.basename(decoded))) return true;
     return false;
   } catch {
-    return true; // malformed URI encoding is treated as hostile
+    return true;
   }
 }
 
@@ -355,6 +372,187 @@ function parseZipEntries(buffer, allowHtml = false) {
   return entries;
 }
 
+function parseEpubSpineEntries(buffer) {
+  const allEntries = [];
+
+  let eocdOffset = -1;
+  for (let i = buffer.length - 22; i >= 0; i--) {
+    if (buffer.readUInt32LE(i) === 0x06054b50) {
+      eocdOffset = i;
+      break;
+    }
+  }
+
+  if (eocdOffset !== -1) {
+    const totalEntries = buffer.readUInt16LE(eocdOffset + 10);
+    const cdOffset = buffer.readUInt32LE(eocdOffset + 16);
+    let p = cdOffset;
+
+    for (let k = 0; k < totalEntries && p < eocdOffset; k++) {
+      if (p + 46 > buffer.length || buffer.readUInt32LE(p) !== 0x02014b50) break;
+
+      const compMethod = buffer.readUInt16LE(p + 10);
+      const compSize = buffer.readUInt32LE(p + 20);
+      const uncompSize = buffer.readUInt32LE(p + 24);
+      const nameLen = buffer.readUInt16LE(p + 28);
+      const extraLen = buffer.readUInt16LE(p + 30);
+      const commentLen = buffer.readUInt16LE(p + 32);
+      const localOffset = buffer.readUInt32LE(p + 42);
+      const filename = buffer.toString("utf-8", p + 46, p + 46 + nameLen);
+
+      if (
+        localOffset + 30 <= buffer.length &&
+        buffer.readUInt32LE(localOffset) === 0x04034b50
+      ) {
+        const locNameLen = buffer.readUInt16LE(localOffset + 26);
+        const locExtraLen = buffer.readUInt16LE(localOffset + 28);
+
+        allEntries.push({
+          name: filename,
+          compMethod,
+          compSize,
+          uncompSize,
+          dataOffset: localOffset + 30 + locNameLen + locExtraLen,
+        });
+      }
+
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+  }
+
+  const byName = new Map(allEntries.map((entry) => [entry.name, entry]));
+
+  const readEntryText = (name) => {
+    const entry = byName.get(name);
+    if (!entry) return null;
+    try {
+      return extractZipEntry(buffer, entry).toString("utf-8");
+    } catch {
+      return null;
+    }
+  };
+
+  const decodeXml = (value) =>
+    value
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">");
+
+  const normalizeZipPath = (value) => {
+    const parts = [];
+    for (const part of value.replace(/\\/g, "/").split("/")) {
+      if (!part || part === ".") continue;
+      if (part === "..") parts.pop();
+      else parts.push(part);
+    }
+    return parts.join("/");
+  };
+
+  let opfPath = null;
+  const containerXml = readEntryText("META-INF/container.xml");
+
+  if (containerXml) {
+    const match = containerXml.match(
+      /<rootfile\b[^>]*full-path\s*=\s*["']([^"']+)["']/i
+    );
+    if (match) opfPath = decodeXml(match[1]);
+  }
+
+  if (!opfPath) {
+    const opfEntry = allEntries.find((entry) => /\.opf$/i.test(entry.name));
+    opfPath = opfEntry ? opfEntry.name : null;
+  }
+
+  if (opfPath) {
+    const opf = readEntryText(opfPath);
+
+    if (opf) {
+      const manifest = new Map();
+      const manifestMatch = opf.match(
+        /<manifest\b[^>]*>([\s\S]*?)<\/manifest>/i
+      );
+
+      if (manifestMatch) {
+        const itemRe = /<item\b([^>]*?)\/?>/gi;
+        let itemMatch;
+
+        while ((itemMatch = itemRe.exec(manifestMatch[1]))) {
+          const attrs = itemMatch[1];
+          const id = attrs.match(/\bid\s*=\s*["']([^"']+)["']/i)?.[1];
+          const href = attrs.match(/\bhref\s*=\s*["']([^"']+)["']/i)?.[1];
+          const mediaType = attrs
+            .match(/\bmedia-type\s*=\s*["']([^"']+)["']/i)?.[1]
+            ?.toLowerCase();
+
+          if (!id || !href) continue;
+
+          const opfDir = path.posix.dirname(opfPath);
+          const cleanHref = decodeXml(href).split("#")[0];
+          const resolved = normalizeZipPath(
+            path.posix.join(opfDir, cleanHref)
+          );
+
+          manifest.set(id, {
+            path: resolved,
+            mediaType: mediaType || "",
+          });
+        }
+      }
+
+      const spineMatch = opf.match(
+        /<spine\b[^>]*>([\s\S]*?)<\/spine>/i
+      );
+
+      if (spineMatch) {
+        const result = [];
+        const itemRefRe = /<itemref\b([^>]*?)\/?>/gi;
+        let refMatch;
+
+        while ((refMatch = itemRefRe.exec(spineMatch[1]))) {
+          const idref = refMatch[1].match(
+            /\bidref\s*=\s*["']([^"']+)["']/i
+          )?.[1];
+
+          if (!idref) continue;
+
+          const item = manifest.get(idref);
+          if (!item) continue;
+
+          const entry = byName.get(item.path);
+          if (!entry) continue;
+
+          const ext = path.extname(entry.name).toLowerCase();
+          const isImage =
+            item.mediaType.startsWith("image/") ||
+            IMAGE_EXTENSIONS_REGEX.test(entry.name);
+
+          const isHtml =
+            item.mediaType === "application/xhtml+xml" ||
+            item.mediaType === "text/html" ||
+            /\.(xhtml|html|htm)$/i.test(entry.name);
+
+          if (isImage || isHtml) {
+            result.push({
+              ...entry,
+              type: isImage ? "image" : "html",
+            });
+          }
+        }
+
+        if (result.length > 0) return result;
+      }
+    }
+  }
+
+  // Compatibility fallback for EPUBs whose OPF/spine cannot be read.
+  return parseZipEntries(buffer, true).map((entry) => ({
+    ...entry,
+    type: IMAGE_EXTENSIONS_REGEX.test(entry.name) ? "image" : "html",
+  }));
+}
+
 function extractZipEntry(buffer, entry) {
   const compressed = buffer.subarray(entry.dataOffset, entry.dataOffset + entry.compSize);
   if (entry.compMethod === 0) {
@@ -366,9 +564,17 @@ function extractZipEntry(buffer, entry) {
   throw new Error(`Unsupported compression method: ${entry.compMethod}`);
 }
 
-const initialConfig = getFreshConfig();
+let initialConfig;
+try {
+  initialConfig = getFreshConfig();
+} catch (err) {
+  console.error(`
+Koka Bridge configuration error: ${err.message}`);
+  console.error("Server startup cancelled. Fix config.json and run again.");
+  process.exit(1);
+}
 console.log("=========================================");
-console.log(" Koka Streaming Bridge (Standalone)");
+console.log(" Koka Streaming Bridge (Standalone Hybrid)");
 console.log(` Device ID   : ${initialConfig.DEVICE_ID}`);
 console.log(` Node Name   : ${initialConfig.NODE_NAME}`);
 console.log(` Node Type   : ${initialConfig.NODE_TYPE}`);
@@ -777,8 +983,8 @@ const server = http.createServer((req, res) => {
           e.name.toLowerCase() === (chapter || "").toLowerCase() ||
           e.name === slug ||
           e.name.toLowerCase() === (slug || "").toLowerCase() ||
-          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === cleanSlug ||
-          e.name.replace(/\.[^/.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-") === cleanSlug
+          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase() ||
+          e.name.replace(/\.[^/.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase()
         ));
         if (rootArchive) {
           const p = path.join(mangaRoot, rootArchive.name);
@@ -788,7 +994,7 @@ const server = http.createServer((req, res) => {
         const targetFolder = entries.find((e) => isDirEntry(e, mangaRoot) && (
           e.name === slug ||
           e.name.toLowerCase() === (slug || "").toLowerCase() ||
-          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === cleanSlug
+          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase()
         ));
 
         if (targetFolder) {
@@ -857,11 +1063,15 @@ const server = http.createServer((req, res) => {
       // EPUB
       if (stat.isFile() && ext === ".epub") {
         const buffer = fs.readFileSync(targetPath);
-        const entries = parseZipEntries(buffer, true);
+        const entries = parseEpubSpineEntries(buffer);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
           pageCount: entries.length || 1,
-          pages: entries.map((e, idx) => ({ index: idx, name: path.basename(e.name) })),
+          pages: entries.map((e, idx) => ({
+            index: idx,
+            name: path.basename(e.name),
+            type: e.type || (IMAGE_EXTENSIONS_REGEX.test(e.name) ? "image" : "html"),
+          })),
           isEpub: true,
           format: "epub",
         }));
@@ -913,6 +1123,124 @@ const server = http.createServer((req, res) => {
     } catch (err) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to read manga pages: " + err.message }));
+      return;
+    }
+  }
+
+  // 7. EPUB Embedded Resource Stream Endpoint
+  // Serves images referenced by an EPUB XHTML spine page. Relative EPUB
+  // URLs must be resolved inside the EPUB archive, not against the website.
+  if (pathname === "/api/stream/manga-resource") {
+    const slug = parsedUrl.searchParams.get("slug");
+    const chapter = parsedUrl.searchParams.get("chapter");
+    const pageStr = parsedUrl.searchParams.get("page");
+    const resource = parsedUrl.searchParams.get("resource");
+    const pageIndex = parseInt(pageStr || "0", 10);
+
+    if (
+      !slug ||
+      isMaliciousPathSegment(slug) ||
+      isMaliciousPathSegment(chapter) ||
+      !resource ||
+      Number.isNaN(pageIndex)
+    ) {
+      res.writeHead(400, { "Content-Type": "text/plain" });
+      res.end("Invalid or missing parameters");
+      return;
+    }
+
+    // Never proxy arbitrary external URLs or data URLs.
+    if (
+      /^[a-z][a-z0-9+.-]*:/i.test(resource) ||
+      resource.startsWith("//")
+    ) {
+      res.writeHead(400, { "Content-Type": "text/plain" });
+      res.end("Invalid EPUB resource");
+      return;
+    }
+
+    const targetPath = findMangaPathMulti(slug, chapter);
+    if (
+      !targetPath ||
+      !fs.existsSync(targetPath) ||
+      !isSafeUnderAnyBase(MANGA_PATHS, targetPath)
+    ) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Chapter not found");
+      return;
+    }
+
+    try {
+      const stat = fs.statSync(targetPath);
+      if (!stat.isFile() || path.extname(targetPath).toLowerCase() !== ".epub") {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Resource endpoint requires an EPUB");
+        return;
+      }
+
+      const buffer = fs.readFileSync(targetPath);
+      const spineEntries = parseEpubSpineEntries(buffer);
+
+      if (pageIndex < 0 || pageIndex >= spineEntries.length) {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("EPUB page not found");
+        return;
+      }
+
+      const spineEntry = spineEntries[pageIndex];
+      const baseDir = path.posix.dirname(spineEntry.name);
+
+      let decodedResource = resource;
+      try {
+        decodedResource = decodeURIComponent(decodedResource);
+      } catch {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Invalid resource encoding");
+        return;
+      }
+
+      decodedResource = decodedResource.split("#")[0].split("?")[0];
+
+      // Resolve the browser's relative URL exactly within the EPUB ZIP.
+      const parts = [];
+      for (const part of path.posix.join(baseDir, decodedResource).split("/")) {
+        if (!part || part === ".") continue;
+        if (part === "..") {
+          if (parts.length > 0) parts.pop();
+          continue;
+        }
+        parts.push(part);
+      }
+      const resourcePath = parts.join("/");
+
+      if (!resourcePath || resourcePath.startsWith("/")) {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("EPUB resource not found");
+        return;
+      }
+
+      // Resource URLs are limited to files actually present in this EPUB.
+      const entries = parseZipEntries(buffer, true);
+      const resourceEntry = entries.find((entry) => entry.name === resourcePath);
+
+      if (!resourceEntry) {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("EPUB resource not found");
+        return;
+      }
+
+      const fileBuffer = extractZipEntry(buffer, resourceEntry);
+      const entryExt = path.extname(resourceEntry.name).toLowerCase();
+      res.writeHead(200, {
+        "Content-Type": MIME_TYPES[entryExt] || "application/octet-stream",
+        "Content-Length": fileBuffer.length,
+        "Cache-Control": "public, max-age=86400",
+      });
+      res.end(fileBuffer);
+      return;
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("Failed to read EPUB resource: " + err.message);
       return;
     }
   }
@@ -971,7 +1299,7 @@ const server = http.createServer((req, res) => {
       // EPUB Streaming
       if (stat.isFile() && ext === ".epub") {
         const buffer = fs.readFileSync(targetPath);
-        const entries = parseZipEntries(buffer, true);
+        const entries = parseEpubSpineEntries(buffer);
         if (pageIndex < 0 || pageIndex >= entries.length) {
           res.writeHead(404, { "Content-Type": "text/plain" });
           res.end("Page not found");
@@ -1060,7 +1388,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(initialConfig.PORT, () => {
-  console.log(` Koka Bridge ready on port ${initialConfig.PORT}`);
+  console.log(` Koka Bridge (PC & Android Termux) ready on port ${initialConfig.PORT}`);
 });
 
 process.on("uncaughtException", (err) => {

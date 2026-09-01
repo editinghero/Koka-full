@@ -166,7 +166,7 @@ export function MangaReader({
 
   const [currentPage, setCurrentPage] = useState<number>(initialPage);
   const [totalPages, setTotalPages] = useState<number>(1);
-  const [pagesList, setPagesList] = useState<{ index: number; name: string; type?: "html" | "image" }[]>(
+  const [pagesList, setPagesList] = useState<{ index: number; name: string }[]>(
     [],
   );
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -177,8 +177,6 @@ export function MangaReader({
   const [epubContent, setEpubContent] = useState<string>("");
   const [isEpubLoading, setIsEpubLoading] = useState<boolean>(false);
   const [novelFontSize, setNovelFontSize] = useState<number>(18);
-  const currentEpubPage = isEpub ? pagesList[Math.max(0, currentPage - 1)] : undefined;
-  const isEpubImagePage = isEpub && currentEpubPage?.type === "image";
 
   const getEpubScrollStorageKey = useCallback(
     (chapter = chapterFile, section = currentPage) =>
@@ -444,13 +442,6 @@ export function MangaReader({
   // Load EPUB chapter content when viewing an EPUB
   useEffect(() => {
     if (!isEpub || isLoading) return;
-
-    if (isEpubImagePage) {
-      setEpubContent("");
-      setIsEpubLoading(false);
-      return;
-    }
-
     setIsEpubLoading(true);
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
@@ -462,16 +453,67 @@ export function MangaReader({
     });
 
     fetch(url)
-      .then((res) => res.text())
+      .then((res) => {
+        if (!res.ok) throw new Error(`EPUB page request failed: ${res.status}`);
+        return res.text();
+      })
       .then((html) => {
-        setEpubContent(html);
+        // EPUB XHTML contains relative image URLs such as ../Images/foo.jpg.
+        // Without rewriting them, the browser resolves them against the Koka
+        // website (e.g. /Images/foo.jpg) instead of inside the EPUB archive.
+        // Route those resource URLs back through the streamer.
+        try {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          const resourceElements = doc.querySelectorAll("img[src], source[src], video[src], audio[src]");
+          const pageIndex = Math.max(0, currentPage - 1);
+
+          resourceElements.forEach((element) => {
+            const src = element.getAttribute("src");
+            if (!src) return;
+
+            // Leave data:, blob:, http(s): and protocol-relative URLs alone.
+            if (/^(?:data:|blob:|https?:|\/\/)/i.test(src)) return;
+
+            element.setAttribute(
+              "src",
+              buildStreamUrl("/api/stream/manga-resource", {
+                slug,
+                chapter: chapterFile,
+                page: pageIndex,
+                resource: src,
+              }),
+            );
+          });
+
+          // SVG EPUB pages can reference raster images through href/xlink:href.
+          doc.querySelectorAll("image[href], image[xlink\:href]").forEach((element) => {
+            const attr = element.hasAttribute("href") ? "href" : "xlink:href";
+            const src = element.getAttribute(attr);
+            if (!src || /^(?:data:|blob:|https?:|\/\/)/i.test(src)) return;
+
+            element.setAttribute(
+              attr,
+              buildStreamUrl("/api/stream/manga-resource", {
+                slug,
+                chapter: chapterFile,
+                page: pageIndex,
+                resource: src,
+              }),
+            );
+          });
+
+          setEpubContent(doc.body?.innerHTML || html);
+        } catch (rewriteError) {
+          console.warn("Failed to rewrite EPUB resource URLs:", rewriteError);
+          setEpubContent(html);
+        }
         setIsEpubLoading(false);
       })
       .catch((err) => {
         console.warn("Failed to load EPUB chapter:", err);
         setIsEpubLoading(false);
       });
-  }, [isEpub, isLoading, isEpubImagePage, slug, chapterFile, currentPage]);
+  }, [isEpub, isLoading, slug, chapterFile, currentPage]);
 
   // Restore EPUB scroll position within the current spine section after content loads.
   useEffect(() => {
@@ -1693,7 +1735,7 @@ export function MangaReader({
             />
           </div>
         ) : isEpub ? (
-          // EPUB reader: spine HTML is rendered as text; spine image items are rendered as images.
+          // EPUB Light Novel Text Reader with Typography Scaling
           <div
             onClick={handleCenterClick}
             className="w-full max-w-3xl mx-auto px-4 py-8 sm:py-12 min-h-screen cursor-pointer select-text"
@@ -1706,19 +1748,6 @@ export function MangaReader({
             {isEpubLoading ? (
               <div className="flex items-center justify-center py-20 text-muted-foreground text-sm font-medium">
                 Loading chapter {currentPage}...
-              </div>
-            ) : isEpubImagePage ? (
-              <div className="w-full min-h-[70vh] flex items-center justify-center">
-                <img
-                  src={buildStreamUrl("/api/stream/manga-page", {
-                    slug,
-                    chapter: chapterFile,
-                    page: currentPage - 1,
-                  })}
-                  alt={currentEpubPage?.name || `Image ${currentPage}`}
-                  style={getImageFilterStyle()}
-                  className="max-w-full h-auto rounded-md shadow-2xl"
-                />
               </div>
             ) : (
               <div
