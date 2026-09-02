@@ -41,8 +41,14 @@ export interface MangaChapter {
   file: string;
   label: string;
   relativePath: string;
-  format: "folder" | "cbz" | "zip" | "cbr" | "cb7" | "cbt" | "pdf" | "epub" | "images";
+  group?: string | undefined;
+  format: "folder" | "cbz" | "zip" | "cbr" | "cb7" | "cbt" | "pdf" | "epub" | "txt" | "docx" | "doc" | "images";
   pageCount?: number | undefined;
+}
+
+export interface MangaGroup {
+  name: string;
+  chapters: MangaChapter[];
 }
 
 export interface ScannedManga {
@@ -51,6 +57,7 @@ export interface ScannedManga {
   folderPath: string;
   statusFolder?: string | undefined;
   chapters: MangaChapter[];
+  groups?: MangaGroup[] | undefined;
   chapterCount: number;
   hasLocalPoster: boolean;
   hasLocalBanner: boolean;
@@ -101,7 +108,25 @@ const ARCHIVE_EXTENSIONS = new Set([
   ".tar",
   ".pdf",
   ".epub",
+  ".txt",
+  ".docx",
+  ".doc",
 ]);
+
+export function getMangaFormat(filename: string): MangaChapter["format"] {
+  const ext = extname(filename).toLowerCase();
+  if (ext === ".cbz") return "cbz";
+  if (ext === ".zip") return "zip";
+  if (ext === ".cbr" || ext === ".rar") return "cbr";
+  if (ext === ".cb7" || ext === ".7z") return "cb7";
+  if (ext === ".cbt" || ext === ".tar") return "cbt";
+  if (ext === ".pdf") return "pdf";
+  if (ext === ".epub") return "epub";
+  if (ext === ".txt") return "txt";
+  if (ext === ".docx") return "docx";
+  if (ext === ".doc") return "doc";
+  return "zip";
+}
 
 const STATUS_FOLDERS = [
   "watching",
@@ -218,110 +243,66 @@ function scanAnimeTitleFolder(
   const seasons: AnimeSeason[] = [];
   let totalEpisodes = 0;
 
-  const entries = readdirSync(titlePath, { withFileTypes: true });
-
-  const rootVideos: string[] = [];
-  const rootSubtitles: string[] = [];
-  const seasonDirs: { name: string; path: string }[] = [];
-
-  for (const item of entries) {
-    if (item.name.startsWith(".")) continue;
-
-    if (isFileEntry(item, titlePath)) {
-      const ext = extname(item.name).toLowerCase();
-      if (VIDEO_EXTENSIONS.has(ext)) {
-        rootVideos.push(item.name);
-      } else if (SUBTITLE_EXTENSIONS.has(ext)) {
-        rootSubtitles.push(item.name);
-      }
-    } else if (isDirEntry(item, titlePath)) {
-      const lower = item.name.toLowerCase();
-      if (
-        lower.startsWith("season") ||
-        lower.startsWith("s1") ||
-        lower.startsWith("s2") ||
-        lower.startsWith("s3") ||
-        lower.startsWith("s4") ||
-        lower.startsWith("s0") ||
-        lower.startsWith("specials") ||
-        lower.startsWith("ova") ||
-        lower.startsWith("movie") ||
-        lower.includes("season")
-      ) {
-        seasonDirs.push({ name: item.name, path: join(titlePath, item.name) });
-      }
-    }
-  }
-
-  // If there are video files directly in the title folder
-  if (rootVideos.length > 0) {
-    const episodes: AnimeEpisode[] = rootVideos.map((file) => {
-      const base = parse(file).name;
-      const subs = rootSubtitles.filter((sub) => {
-        const subBase = parse(sub).name;
-        return subBase === base || subBase.startsWith(base);
-      });
-
-      return {
-        file,
-        label: base,
-        season: "Season 1",
-        relativePath: file,
-        subtitles: subs,
-      };
-    });
-
-    episodes.sort((a, b) => naturalSort(a.file, b.file));
-    seasons.push({ name: "Season 1", episodes });
-    totalEpisodes += episodes.length;
-  }
-
-  // Scan subfolders (seasons)
-  for (const dir of seasonDirs) {
+  function scanAnimeSubDir(currentDir: string, relativeDir: string = "") {
+    let entries: Dirent[] = [];
     try {
-      const sEntries = readdirSync(dir.path, { withFileTypes: true });
-      const sVideos: string[] = [];
-      const sSubtitles: string[] = [];
+      entries = readdirSync(currentDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
 
-      for (const item of sEntries) {
-        if (item.name.startsWith(".")) continue;
-        if (isFileEntry(item, dir.path)) {
-          const ext = extname(item.name).toLowerCase();
-          if (VIDEO_EXTENSIONS.has(ext)) {
-            sVideos.push(item.name);
-          } else if (SUBTITLE_EXTENSIONS.has(ext)) {
-            sSubtitles.push(item.name);
-          }
+    const videos: string[] = [];
+    const subtitles: string[] = [];
+
+    for (const item of entries) {
+      if (item.name.startsWith(".")) continue;
+      if (isFileEntry(item, currentDir)) {
+        const ext = extname(item.name).toLowerCase();
+        if (VIDEO_EXTENSIONS.has(ext)) {
+          videos.push(item.name);
+        } else if (SUBTITLE_EXTENSIONS.has(ext)) {
+          subtitles.push(item.name);
         }
       }
+    }
 
-      if (sVideos.length > 0) {
-        const episodes: AnimeEpisode[] = sVideos.map((f) => {
-          const base = parse(f).name;
-          const subs = sSubtitles
-            .filter((sub) => {
-              const subBase = parse(sub).name;
-              return subBase === base || subBase.startsWith(base);
-            })
-            .map((s) => join(dir.name, s).replace(/\\/g, "/"));
+    if (videos.length > 0) {
+      const seasonName = relativeDir ? relativeDir.replace(/\\/g, "/") : "Season 1";
+      const episodes: AnimeEpisode[] = videos.map((f) => {
+        const base = parse(f).name;
+        const subs = subtitles
+          .filter((sub) => {
+            const subBase = parse(sub).name;
+            return subBase === base || subBase.startsWith(base);
+          })
+          .map((s) => (relativeDir ? join(relativeDir, s) : s).replace(/\\/g, "/"));
 
-          return {
-            file: f,
-            label: base,
-            season: dir.name,
-            relativePath: join(dir.name, f).replace(/\\/g, "/"),
-            subtitles: subs,
-          };
-        });
+        return {
+          file: f,
+          label: base,
+          season: seasonName,
+          relativePath: (relativeDir ? join(relativeDir, f) : f).replace(/\\/g, "/"),
+          subtitles: subs,
+        };
+      });
 
-        episodes.sort((a, b) => naturalSort(a.file, b.file));
-        seasons.push({ name: dir.name, episodes });
-        totalEpisodes += episodes.length;
+      episodes.sort((a, b) => naturalSort(a.file, b.file));
+      seasons.push({ name: seasonName, episodes });
+      totalEpisodes += episodes.length;
+    }
+
+    // Recurse into subdirectories
+    for (const item of entries) {
+      if (item.name.startsWith(".") || IGNORE_DIRS.has(item.name.toLowerCase())) continue;
+      if (isDirEntry(item, currentDir)) {
+        const subPath = join(currentDir, item.name);
+        const subRelPath = relativeDir ? join(relativeDir, item.name).replace(/\\/g, "/") : item.name;
+        scanAnimeSubDir(subPath, subRelPath);
       }
-    } catch {
-      /* ignore unreadable season */
     }
   }
+
+  scanAnimeSubDir(titlePath);
 
   // Sort seasons naturally (Season 1 before Season 2)
   seasons.sort((a, b) => naturalSort(a.name, b.name));
@@ -383,73 +364,107 @@ function scanMangaTitleFolder(
   const slug = toSlug(folderName);
   const chapters: MangaChapter[] = [];
 
-  const entries = readdirSync(titlePath, { withFileTypes: true });
+  function scanDirRecursive(currentDir: string, relativeDir: string = "") {
+    let entries: Dirent[] = [];
+    try {
+      entries = readdirSync(currentDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
 
-  for (const item of entries) {
-    if (item.name.startsWith(".")) continue;
+    // 1. Collect all archive / novel / document files in this directory
+    const groupName = relativeDir ? relativeDir.replace(/\\/g, "/") : "Main";
+    for (const item of entries) {
+      if (item.name.startsWith(".")) continue;
+      const relPath = relativeDir ? join(relativeDir, item.name).replace(/\\/g, "/") : item.name;
 
-    if (isFileEntry(item, titlePath)) {
-      const ext = extname(item.name).toLowerCase();
-      if (ARCHIVE_EXTENSIONS.has(ext)) {
-        let format: MangaChapter["format"] = "zip";
-        if (ext === ".cbz") format = "cbz";
-        else if (ext === ".zip") format = "zip";
-        else if (ext === ".cbr" || ext === ".rar") format = "cbr";
-        else if (ext === ".cb7" || ext === ".7z") format = "cb7";
-        else if (ext === ".cbt" || ext === ".tar") format = "cbt";
-        else if (ext === ".pdf") format = "pdf";
-        else if (ext === ".epub") format = "epub";
-
-        chapters.push({
-          file: item.name,
-          label: parse(item.name).name,
-          relativePath: item.name,
-          format,
-        });
-      }
-    } else if (isDirEntry(item, titlePath)) {
-      // Subdirectory containing images (e.g. Chapter 1 folder)
-      const subPath = join(titlePath, item.name);
-      try {
-        const subFiles = readdirSync(subPath, { withFileTypes: true });
-        const imageCount = subFiles.filter(
-          (f) =>
-            isFileEntry(f, subPath) && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
-        ).length;
-
-        if (imageCount > 0) {
+      if (isFileEntry(item, currentDir)) {
+        const ext = extname(item.name).toLowerCase();
+        if (ARCHIVE_EXTENSIONS.has(ext)) {
           chapters.push({
-            file: item.name,
-            label: item.name,
-            relativePath: item.name,
-            format: "folder",
-            pageCount: imageCount,
+            file: relPath,
+            label: parse(item.name).name,
+            relativePath: relPath,
+            group: groupName,
+            format: getMangaFormat(item.name),
           });
         }
-      } catch {
-        /* ignore unreadable directory */
+      }
+    }
+
+    // 2. Inspect subdirectories
+    for (const item of entries) {
+      if (item.name.startsWith(".") || IGNORE_DIRS.has(item.name.toLowerCase())) continue;
+      if (isDirEntry(item, currentDir)) {
+        const subPath = join(currentDir, item.name);
+        const relPath = relativeDir ? join(relativeDir, item.name).replace(/\\/g, "/") : item.name;
+
+        try {
+          const subEntries = readdirSync(subPath, { withFileTypes: true });
+          const imageFiles = subEntries.filter(
+            (f) => isFileEntry(f, subPath) && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
+          );
+          const hasChildDirs = subEntries.some((d) => isDirEntry(d, subPath) && !d.name.startsWith("."));
+          const hasChildDocs = subEntries.some((f) => isFileEntry(f, subPath) && ARCHIVE_EXTENSIONS.has(extname(f.name).toLowerCase()));
+
+          if (imageFiles.length > 0 && !hasChildDirs && !hasChildDocs) {
+            // Pure chapter folder of images
+            chapters.push({
+              file: relPath,
+              label: item.name,
+              relativePath: relPath,
+              group: groupName,
+              format: "folder",
+              pageCount: imageFiles.length,
+            });
+          } else {
+            // Volume folder or mixed folder — recurse inside
+            scanDirRecursive(subPath, relPath);
+          }
+        } catch {
+          /* ignore unreadable directory */
+        }
       }
     }
   }
 
+  scanDirRecursive(titlePath);
+
   // If no archive or chapter subfolders found, check for direct loose images in the root title folder
   if (chapters.length === 0) {
-    const looseImages = entries.filter(
-      (f) => isFileEntry(f, titlePath) && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
-    );
-    if (looseImages.length > 0) {
-      chapters.push({
-        file: folderName,
-        label: folderName,
-        relativePath: "",
-        format: "folder",
-        pageCount: looseImages.length,
-      });
+    try {
+      const rootEntries = readdirSync(titlePath, { withFileTypes: true });
+      const looseImages = rootEntries.filter(
+        (f) => isFileEntry(f, titlePath) && IMAGE_EXTENSIONS.has(extname(f.name).toLowerCase()),
+      );
+      if (looseImages.length > 0) {
+        chapters.push({
+          file: folderName,
+          label: folderName,
+          relativePath: "",
+          group: "Main",
+          format: "folder",
+          pageCount: looseImages.length,
+        });
+      }
+    } catch {
+      /* ignore */
     }
   }
 
   // Natural sort chapters
   chapters.sort((a, b) => naturalSort(a.file, b.file));
+
+  // Build folder/volume groups (just like anime seasons)
+  const groupMap = new Map<string, MangaChapter[]>();
+  for (const ch of chapters) {
+    const g = ch.group || "Main";
+    if (!groupMap.has(g)) groupMap.set(g, []);
+    groupMap.get(g)!.push(ch);
+  }
+  const groups: MangaGroup[] = Array.from(groupMap.entries())
+    .map(([name, chs]) => ({ name, chapters: chs }))
+    .sort((a, b) => naturalSort(a.name, b.name));
 
   const hasLocalPoster =
     existsSync(join(titlePath, "poster.jpg")) ||
@@ -489,6 +504,7 @@ function scanMangaTitleFolder(
     folderPath: titlePath,
     statusFolder,
     chapters,
+    groups,
     chapterCount: chapters.length,
     hasLocalPoster,
     hasLocalBanner,
@@ -672,15 +688,7 @@ export async function scanLibrary(): Promise<LibraryScanState> {
       for (const file of rootArchives) {
         const baseName = parse(file.name).name;
         const slug = toSlug(baseName);
-        const ext = extname(file.name).toLowerCase();
-        let format: MangaChapter["format"] = "zip";
-        if (ext === ".cbz") format = "cbz";
-        else if (ext === ".zip") format = "zip";
-        else if (ext === ".cbr" || ext === ".rar") format = "cbr";
-        else if (ext === ".cb7" || ext === ".7z") format = "cb7";
-        else if (ext === ".cbt" || ext === ".tar") format = "cbt";
-        else if (ext === ".pdf") format = "pdf";
-        else if (ext === ".epub") format = "epub";
+        const format = getMangaFormat(file.name);
 
         const mediaId =
           mangaLinks?.get(slug) ?? mangaLinks?.get(baseName.toLowerCase());

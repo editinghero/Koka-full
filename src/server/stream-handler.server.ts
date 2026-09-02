@@ -225,13 +225,13 @@ export async function handleMediaStreamRequest(
     });
   }
 
-  // 3. Manga Page endpoint
-  if (pathname === "/api/stream/manga-page") {
+  // 3. Manga Page & Embedded Resource endpoint
+  if (pathname === "/api/stream/manga-page" || pathname === "/api/stream/manga-resource") {
     const slug = url.searchParams.get("slug");
     const rawChapter = url.searchParams.get("chapter");
     const pageStr = url.searchParams.get("page");
     const pageIndex = pageStr ? parseInt(pageStr, 10) : 0;
-    const epubResource = url.searchParams.get("epubResource");
+    const epubResource = url.searchParams.get("epubResource") || url.searchParams.get("resource");
 
     if (
       !slug ||

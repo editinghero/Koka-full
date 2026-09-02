@@ -49,7 +49,10 @@ const SECONDARY_NAV = NAV.filter(
 
 function ThemeToggle() {
   const { settings, update } = useSettings();
-  const dark = settings.theme === "dark";
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const dark = mounted ? settings.theme === "dark" : true;
   return (
     <button
       onClick={() => update({ theme: dark ? "light" : "dark" })}
@@ -63,6 +66,10 @@ function ThemeToggle() {
 
 function ModeSwitch({ className }: { className?: string }) {
   const { mode, setMode } = useMediaMode();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const currentMode = mounted ? mode : "ANIME";
   const navigate = useNavigate();
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
@@ -89,7 +96,7 @@ function ModeSwitch({ className }: { className?: string }) {
       )}
     >
       {options.map((o) => {
-        const active = mode === o.value;
+        const active = currentMode === o.value;
         return (
           <button
             key={o.value}

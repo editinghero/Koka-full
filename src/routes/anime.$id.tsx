@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   Film,
   Layers,
+  Folder,
+  ChevronRight,
 } from "lucide-react";
 import { Cover, countdown } from "@/components/AnimeCard";
 import { AiPanel } from "@/components/AiPanel";
@@ -58,32 +60,27 @@ export const Route = createFileRoute("/anime/$id")({
 function AnimeDetail() {
   const { id } = Route.useParams();
   const animeId = Number(id);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const { mode } = useMediaMode();
-  const copy = MODE_COPY[mode];
+  const currentMode = mounted ? mode : "ANIME";
+  const copy = MODE_COPY[currentMode];
   const { library, upsert, patch, remove } = useLibrary();
   const { notes } = useNotes();
   const note = notes.find((n) => n.animeId === animeId);
-  const entry = library.find((e) => e.media.id === animeId);
+  const entry = mounted ? library.find((e) => e.media.id === animeId) : undefined;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["media", mode, animeId],
-    queryFn: async () => (await fetchByIds([animeId], mode))[0] ?? null,
+    queryKey: ["media", currentMode, animeId],
+    queryFn: async () => (await fetchByIds([animeId], currentMode))[0] ?? null,
     enabled: !entry,
     staleTime: 1000 * 60 * 30,
   });
 
   const media = entry?.media ?? data ?? null;
-
-  if (!media) {
-    return (
-      <p className="panel p-8 text-center text-sm text-muted-foreground">
-        {isLoading ? "Loading title…" : `Couldn't find that ${copy.noun}.`}
-      </p>
-    );
-  }
-
   const progress = entry?.progress ?? 0;
-  const total = totalUnits(media);
+  const total = media ? totalUnits(media) : 0;
 
   function setStatus(status: WatchStatus) {
     if (!media) return;
@@ -234,6 +231,14 @@ function AnimeDetail() {
     }
     return list;
   }, [serverReadRecords, localManga]);
+
+  if (!mounted || !media) {
+    return (
+      <p className="panel p-8 text-center text-sm text-muted-foreground">
+        {isLoading || !mounted ? "Loading title…" : `Couldn't find that ${copy.noun}.`}
+      </p>
+    );
+  }
 
   return (
     <div className="animate-in duration-300 fade-in-0 slide-in-from-bottom-3">
@@ -577,12 +582,23 @@ function AnimeDetail() {
             })()}
 
             {/* Seasons & Episodes Grid */}
-            <div className="space-y-4">
+            <div className="space-y-6">
               {(localAnime.seasons ?? []).map((s) => (
                 <div key={s.name} className="space-y-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    {s.name} ({s.episodes?.length ?? 0} files)
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Folder className="h-3.5 w-3.5 text-primary shrink-0" />
+                    {s.name.split("/").map((seg, idx, arr) => (
+                      <span key={idx} className="flex items-center gap-1.5 text-xs font-semibold">
+                        <span className={idx === arr.length - 1 ? "text-foreground" : "text-muted-foreground"}>
+                          {seg}
+                        </span>
+                        {idx < arr.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground/60" />}
+                      </span>
+                    ))}
+                    <span className="text-[11px] text-muted-foreground font-normal ml-1">
+                      ({s.episodes?.length ?? 0} files)
+                    </span>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                     {(s.episodes ?? []).map((ep) => {
                       const watch = watchRecords?.find(
@@ -702,50 +718,79 @@ function AnimeDetail() {
               );
             })()}
 
-            {/* Chapters Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {localManga.chapters.map((ch) => {
-                const read = readRecords?.find(
-                  (r) => r.chapterFile === ch.file,
-                );
-                const isComplete = read?.completed;
+            {/* Chapters Grouped by Volume/Folder */}
+            {(() => {
+              const groups =
+                localManga.groups && localManga.groups.length > 0
+                  ? localManga.groups
+                  : [{ name: "Chapters", chapters: localManga.chapters }];
 
-                return (
-                  <button
-                    key={ch.file}
-                    onClick={() =>
-                      setActiveChapter({
-                        file: ch.file,
-                        initialPage: isComplete ? 1 : (read?.pageNumber ?? 1),
-                      })
-                    }
-                    className="group flex flex-col p-3 rounded-lg border border-border bg-card/60 hover:bg-accent/70 hover:border-primary/40 transition-all text-left overflow-hidden"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors truncate pr-2">
-                        {ch.label}
-                      </span>
-                      {isComplete ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                      ) : (
-                        <BookOpen className="h-3 w-3 text-muted-foreground group-hover:text-primary shrink-0 transition-colors" />
-                      )}
-                    </div>
-
-                    <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
-                      <span className="uppercase text-[9px] px-1 py-0.2 rounded bg-muted">
-                        {ch.format}
-                      </span>
-                      {read && (
-                        <span>
-                          {read.pageNumber}/{read.totalPages} p
+              return (
+                <div className="space-y-6">
+                  {groups.map((group) => (
+                    <div key={group.name} className="space-y-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Folder className="h-3.5 w-3.5 text-primary shrink-0" />
+                        {group.name.split("/").map((seg, idx, arr) => (
+                          <span key={idx} className="flex items-center gap-1.5 text-xs font-semibold">
+                            <span className={idx === arr.length - 1 ? "text-foreground" : "text-muted-foreground"}>
+                              {seg}
+                            </span>
+                            {idx < arr.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground/60" />}
+                          </span>
+                        ))}
+                        <span className="text-[11px] text-muted-foreground font-normal ml-1">
+                          ({group.chapters.length} files)
                         </span>
-                      )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {group.chapters.map((ch) => {
+                          const read = readRecords?.find(
+                            (r) => r.chapterFile === ch.file,
+                          );
+                          const isComplete = read?.completed;
+
+                          return (
+                            <button
+                              key={ch.file}
+                              onClick={() =>
+                                setActiveChapter({
+                                  file: ch.file,
+                                  initialPage: isComplete ? 1 : (read?.pageNumber ?? 1),
+                                })
+                              }
+                              className="group flex flex-col p-3 rounded-lg border border-border bg-card/60 hover:bg-accent/70 hover:border-primary/40 transition-all text-left overflow-hidden"
+                            >
+                              <div className="flex items-start justify-between w-full gap-2">
+                                <span className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors line-clamp-2 break-words leading-snug">
+                                  {ch.label}
+                                </span>
+                                {isComplete ? (
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                                ) : (
+                                  <BookOpen className="h-3 w-3 text-muted-foreground group-hover:text-primary shrink-0 transition-colors mt-0.5" />
+                                )}
+                              </div>
+
+                              <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground w-full">
+                                <span className="uppercase text-[9px] px-1 py-0.2 rounded bg-muted">
+                                  {ch.format}
+                                </span>
+                                {read && (
+                                  <span>
+                                    {read.pageNumber}/{read.totalPages} p
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </button>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
 

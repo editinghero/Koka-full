@@ -173,7 +173,12 @@ export function MangaReader({
 
   // Novel & Document State
   const isPdf = chapterFile.toLowerCase().endsWith(".pdf");
-  const isEpub = chapterFile.toLowerCase().endsWith(".epub");
+  const isNovel =
+    chapterFile.toLowerCase().endsWith(".epub") ||
+    chapterFile.toLowerCase().endsWith(".docx") ||
+    chapterFile.toLowerCase().endsWith(".doc") ||
+    chapterFile.toLowerCase().endsWith(".txt");
+  const isEpub = isNovel;
   const [epubContent, setEpubContent] = useState<string>("");
   const [isEpubLoading, setIsEpubLoading] = useState<boolean>(false);
   const [novelFontSize, setNovelFontSize] = useState<number>(18);
@@ -196,6 +201,7 @@ export function MangaReader({
   const [isTopBarCollapsed, setIsTopBarCollapsed] = useState<boolean>(false);
   const [isAutoScrolling, setIsAutoScrolling] = useState<boolean>(false);
 
+  const [drawerTab, setDrawerTab] = useState<"toc" | "files">("toc");
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showChapterMenu, setShowChapterMenu] = useState<boolean>(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState<boolean>(false);
@@ -439,9 +445,9 @@ export function MangaReader({
     };
   }, [slug, chapterFile, initialPage]);
 
-  // Load EPUB chapter content when viewing an EPUB
+  // Load Novel / EPUB chapter content when viewing a text/novel chapter
   useEffect(() => {
-    if (!isEpub || isLoading) return;
+    if (!isNovel || isLoading) return;
     setIsEpubLoading(true);
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
@@ -454,75 +460,37 @@ export function MangaReader({
 
     fetch(url)
       .then((res) => {
-        if (!res.ok) throw new Error(`EPUB page request failed: ${res.status}`);
+        if (!res.ok) throw new Error(`Novel page request failed: ${res.status}`);
         return res.text();
       })
       .then((html) => {
-        // EPUB XHTML contains relative image URLs such as ../Images/foo.jpg.
-        // Without rewriting them, the browser resolves them against the Koka
-        // website (e.g. /Images/foo.jpg) instead of inside the EPUB archive.
-        // Route those resource URLs back through the streamer.
-        try {
-          const doc = new DOMParser().parseFromString(html, "text/html");
-          const resourceElements = doc.querySelectorAll("img[src], source[src], video[src], audio[src]");
-          const pageIndex = Math.max(0, currentPage - 1);
-
-          resourceElements.forEach((element) => {
-            const src = element.getAttribute("src");
-            if (!src) return;
-
-            // Leave data:, blob:, http(s): and protocol-relative URLs alone.
-            if (/^(?:data:|blob:|https?:|\/\/)/i.test(src)) return;
-
-            element.setAttribute(
-              "src",
-              buildStreamUrl("/api/stream/manga-resource", {
-                slug,
-                chapter: chapterFile,
-                page: pageIndex,
-                resource: src,
-              }),
+        // Only rewrite if un-rewritten relative paths remain (avoiding double-proxying)
+        if (html.includes('src="../') || html.includes('href="../') || html.includes('xlink:href="../')) {
+          try {
+            const pageIndex = Math.max(0, currentPage - 1);
+            const cleaned = html.replace(
+              /\b(src|href|xlink:href)=["'](?:\.\.\/)+([^"']+)["']/gi,
+              (_, attr, resPath) =>
+                `${attr}="${buildStreamUrl("/api/stream/manga-page", {
+                  slug,
+                  chapter: chapterFile,
+                  epubResource: resPath,
+                })}"`,
             );
-          });
-
-          // SVG EPUB pages can reference raster images through href/xlink:href.
-          // Do not use a CSS selector for xlink:href: some browsers reject the
-          // colon selector and would abort the whole rewrite, leaving the
-          // original ../Images/... URL untouched.
-          Array.from(doc.getElementsByTagName("image")).forEach((element) => {
-            const attr = element.hasAttribute("href")
-              ? "href"
-              : element.hasAttribute("xlink:href")
-                ? "xlink:href"
-                : null;
-            if (!attr) return;
-
-            const src = element.getAttribute(attr);
-            if (!src || /^(?:data:|blob:|https?:|\/\/)/i.test(src)) return;
-
-            element.setAttribute(
-              attr,
-              buildStreamUrl("/api/stream/manga-resource", {
-                slug,
-                chapter: chapterFile,
-                page: pageIndex,
-                resource: src,
-              }),
-            );
-          });
-
-          setEpubContent(doc.body?.innerHTML || html);
-        } catch (rewriteError) {
-          console.warn("Failed to rewrite EPUB resource URLs:", rewriteError);
+            setEpubContent(cleaned);
+          } catch {
+            setEpubContent(html);
+          }
+        } else {
           setEpubContent(html);
         }
         setIsEpubLoading(false);
       })
       .catch((err) => {
-        console.warn("Failed to load EPUB chapter:", err);
+        console.warn("Failed to load novel chapter:", err);
         setIsEpubLoading(false);
       });
-  }, [isEpub, isLoading, slug, chapterFile, currentPage]);
+  }, [isNovel, isLoading, slug, chapterFile, currentPage]);
 
   // Restore EPUB scroll position within the current spine section after content loads.
   useEffect(() => {
@@ -977,6 +945,91 @@ export function MangaReader({
     }
   };
 
+  // Handle in-novel link clicks (TOC jumps, backlinks, and footnotes)
+  const handleNovelContainerClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const target = (e.target as HTMLElement).closest("a");
+      if (!target) {
+        handleCenterClick(e);
+        return;
+      }
+
+      const epubTarget = target.getAttribute("data-epub-target");
+      const epubAnchor = target.getAttribute("data-epub-anchor");
+      const rawHref = target.getAttribute("href");
+
+      if (
+        epubTarget ||
+        (rawHref &&
+          !rawHref.startsWith("http://") &&
+          !rawHref.startsWith("https://") &&
+          !rawHref.startsWith("mailto:"))
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (rawHref?.startsWith("#") && !epubTarget) {
+          const anchorId = rawHref.slice(1);
+          const el =
+            document.getElementById(anchorId) ||
+            document.querySelector(`[name="${anchorId}"]`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+          return;
+        }
+
+        const targetFile = epubTarget || rawHref?.split("#")[0] || "";
+        const anchor = epubAnchor || rawHref?.split("#")[1] || "";
+        const normTarget = targetFile
+          .replace(/\\/g, "/")
+          .toLowerCase()
+          .trim()
+          .replace(/^\//, "");
+
+        const foundIdx = pagesList.findIndex((p: any) => {
+          const pNorm = (p.name || "")
+            .replace(/\\/g, "/")
+            .toLowerCase()
+            .trim()
+            .replace(/^\//, "");
+          const pTargetNorm = (p.targetFile || p.href || "")
+            .replace(/\\/g, "/")
+            .toLowerCase()
+            .trim()
+            .replace(/^\//, "");
+          return (
+            pNorm === normTarget ||
+            pNorm.endsWith("/" + normTarget) ||
+            normTarget.endsWith("/" + pNorm) ||
+            pTargetNorm === normTarget ||
+            pTargetNorm.endsWith("/" + normTarget) ||
+            normTarget.endsWith("/" + pTargetNorm)
+          );
+        });
+
+        if (foundIdx >= 0) {
+          setCurrentPage(foundIdx + 1);
+          if (anchor) {
+            setTimeout(() => {
+              const el =
+                document.getElementById(anchor) ||
+                document.querySelector(`[name="${anchor}"]`);
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 350);
+          }
+        }
+        return;
+      }
+
+      if (rawHref?.startsWith("http://") || rawHref?.startsWith("https://")) {
+        e.stopPropagation();
+        window.open(rawHref, "_blank", "noopener,noreferrer");
+      }
+    },
+    [pagesList, handleCenterClick],
+  );
+
   // Compute CSS filter style for images
   const getImageFilterStyle = (): React.CSSProperties => {
     const filters: string[] = [];
@@ -1162,6 +1215,33 @@ export function MangaReader({
                   </Button>
                 </div>
               </>
+            )}
+
+            {/* Novel / EPUB Font Size Controls */}
+            {isNovel && (
+              <div className="flex items-center gap-0.5 bg-muted/60 p-0.5 rounded-full border border-border/60">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs font-semibold rounded-full text-muted-foreground hover:text-foreground"
+                  onClick={() => setNovelFontSize((s) => Math.max(12, s - 2))}
+                  title="Decrease Font Size"
+                >
+                  A-
+                </Button>
+                <span className="text-[10px] font-mono font-medium text-foreground px-1">
+                  {novelFontSize}px
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs font-semibold rounded-full text-muted-foreground hover:text-foreground"
+                  onClick={() => setNovelFontSize((s) => Math.min(36, s + 2))}
+                  title="Increase Font Size"
+                >
+                  A+
+                </Button>
+              </div>
             )}
 
             {/* Auto Scroll Controls for Webtoon Mode */}
@@ -1667,17 +1747,17 @@ export function MangaReader({
         </>
       )}
 
-      {/* 4. Chapter Drawer with Multiline Word Wrapping */}
+      {/* 4. Chapter / Table of Contents Drawer */}
       {showChapterMenu && (
         <>
           <div
             className="fixed inset-0 z-[125]"
             onClick={() => setShowChapterMenu(false)}
           />
-          <div className="fixed right-4 top-16 bottom-20 w-80 max-w-[calc(100vw-2rem)] border border-border/80 glass-popover rounded-2xl shadow-2xl p-4 overflow-y-auto z-[130] flex flex-col gap-3 animate-in slide-in-from-right-4 duration-200">
+          <div className="fixed right-4 top-16 bottom-20 w-84 max-w-[calc(100vw-2rem)] border border-border/80 glass-popover rounded-2xl shadow-2xl p-4 overflow-y-auto z-[130] flex flex-col gap-3 animate-in slide-in-from-right-4 duration-200">
             <div className="flex items-center justify-between border-b border-border/80 pb-2">
               <h3 className="font-display font-semibold text-sm whitespace-normal break-words leading-snug flex-1 pr-2">
-                {title || "Chapters"}
+                {title || (isNovel ? "Table of Contents" : "Chapters")}
               </h3>
               <Button
                 variant="ghost"
@@ -1688,30 +1768,88 @@ export function MangaReader({
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            <div className="grid gap-1 overflow-y-auto">
-              {chapters.map((ch) => {
-                const isSelected = ch.file === chapterFile;
-                return (
-                  <button
-                    key={ch.file}
-                    onClick={() => {
-                      onChapterChange(ch.file);
-                      setShowChapterMenu(false);
-                    }}
-                    className={cn(
-                      "w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors min-w-0 gap-2",
-                      isSelected
-                        ? "bg-primary text-primary-foreground font-semibold"
-                        : "hover:bg-accent text-foreground",
-                    )}
-                  >
-                    <span className="whitespace-normal break-words leading-relaxed flex-1 text-left">
-                      {ch.label}
-                    </span>
-                    {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
-                  </button>
-                );
-              })}
+
+            {/* Tab switch for Novels: Table of Contents vs Volumes/Files */}
+            {isNovel && pagesList.length > 1 && (
+              <div className="flex rounded-xl bg-surface border border-border/70 p-0.5 text-xs font-semibold">
+                <button
+                  onClick={() => setDrawerTab("toc")}
+                  className={cn(
+                    "flex-1 py-1 px-2 rounded-lg transition-all text-center",
+                    drawerTab === "toc"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Contents ({pagesList.length})
+                </button>
+                <button
+                  onClick={() => setDrawerTab("files")}
+                  className={cn(
+                    "flex-1 py-1 px-2 rounded-lg transition-all text-center",
+                    drawerTab === "files"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Volumes ({chapters.length})
+                </button>
+              </div>
+            )}
+
+            {/* Content List */}
+            <div className="grid gap-1 overflow-y-auto flex-1">
+              {isNovel && drawerTab === "toc" && pagesList.length > 0 ? (
+                // Table of Contents list with real section/chapter titles
+                pagesList.map((p) => {
+                  const isCurrent = currentPage === p.index + 1;
+                  return (
+                    <button
+                      key={p.index}
+                      onClick={() => {
+                        setCurrentPage(p.index + 1);
+                        setShowChapterMenu(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors min-w-0 gap-2",
+                        isCurrent
+                          ? "bg-primary text-primary-foreground font-semibold"
+                          : "hover:bg-accent text-foreground",
+                      )}
+                    >
+                      <span className="whitespace-normal break-words leading-relaxed flex-1 text-left">
+                        {p.name || `Section ${p.index + 1}`}
+                      </span>
+                      {isCurrent && <Check className="w-3.5 h-3.5 shrink-0" />}
+                    </button>
+                  );
+                })
+              ) : (
+                // Volumes / Chapter files list
+                chapters.map((ch) => {
+                  const isSelected = ch.file === chapterFile;
+                  return (
+                    <button
+                      key={ch.file}
+                      onClick={() => {
+                        onChapterChange(ch.file);
+                        setShowChapterMenu(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors min-w-0 gap-2",
+                        isSelected
+                          ? "bg-primary text-primary-foreground font-semibold"
+                          : "hover:bg-accent text-foreground",
+                      )}
+                    >
+                      <span className="whitespace-normal break-words leading-relaxed flex-1 text-left">
+                        {ch.label}
+                      </span>
+                      {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
         </>
@@ -1744,9 +1882,9 @@ export function MangaReader({
             />
           </div>
         ) : isEpub ? (
-          // EPUB Light Novel Text Reader with Typography Scaling
+          // EPUB Light Novel Text Reader with Typography Scaling & In-Reader Link Navigation
           <div
-            onClick={handleCenterClick}
+            onClick={handleNovelContainerClick}
             className="w-full max-w-3xl mx-auto px-4 py-8 sm:py-12 min-h-screen cursor-pointer select-text"
             style={{
               fontSize: `${novelFontSize}px`,
@@ -1756,7 +1894,7 @@ export function MangaReader({
           >
             {isEpubLoading ? (
               <div className="flex items-center justify-center py-20 text-muted-foreground text-sm font-medium">
-                Loading chapter {currentPage}...
+                Loading {pagesList[currentPage - 1]?.name || `chapter ${currentPage}`}...
               </div>
             ) : (
               <div

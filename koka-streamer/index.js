@@ -141,6 +141,10 @@ const MIME_TYPES = {
   ".xhtml": "application/xhtml+xml",
   ".htm": "text/html",
   ".txt": "text/plain",
+  ".css": "text/css",
+  ".svg": "image/svg+xml",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".doc": "application/msword",
 };
 
 const ALLOWED_VIDEO_EXTS = new Set([".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".ts", ".m4v"]);
@@ -156,23 +160,26 @@ const ALLOWED_MANGA_ARCHIVE_EXTS = new Set([
   ".tar",
   ".pdf",
   ".epub",
+  ".txt",
+  ".docx",
+  ".doc",
 ]);
-const IMAGE_EXTENSIONS_REGEX = /\.(jpg|jpeg|png|webp|gif|avif|bmp|tiff|tif|jxl|heic|heif)$/i;
-const MANGA_FILE_REGEX = /\.(cbz|zip|cbr|rar|cb7|7z|cbt|tar|pdf|epub)$/i;
+const IMAGE_EXTENSIONS_REGEX = /\.(jpg|jpeg|png|webp|gif|avif|bmp|tiff|tif|jxl|heic|heif|svg)$/i;
+const MANGA_FILE_REGEX = /\.(cbz|zip|cbr|rar|cb7|7z|cbt|tar|pdf|epub|txt|docx|doc)$/i;
 
 function isMaliciousPathSegment(segment) {
   if (!segment || typeof segment !== "string") return false;
+  let decoded = segment;
   try {
-    const decoded = decodeURIComponent(segment);
-    if (decoded.includes("\0")) return true;
-    if (decoded.includes("..")) return true;
-    if (/^[a-zA-Z]:/i.test(decoded)) return true;
-    if (decoded.startsWith("/") || decoded.startsWith("\\")) return true;
-    if (/^\.(env|git|ssh|config|aws|bash|npm|profile|htaccess|htpasswd)/i.test(path.basename(decoded))) return true;
-    return false;
+    decoded = decodeURIComponent(segment.replace(/\+/g, " "));
   } catch {
-    return true;
+    decoded = segment;
   }
+  if (decoded.includes("\0")) return true;
+  if (decoded.includes("..")) return true;
+  if (/^[a-zA-Z]:/i.test(decoded)) return true;
+  if (/^\.(env|git|ssh|config|aws|bash|npm|profile|htaccess|htpasswd)/i.test(path.basename(decoded))) return true;
+  return false;
 }
 
 function isSafePath(base, target) {
@@ -249,7 +256,207 @@ function getMangaFormat(filename) {
   if (ext === ".cbt" || ext === ".tar") return "cbt";
   if (ext === ".pdf") return "pdf";
   if (ext === ".epub") return "epub";
+  if (ext === ".txt") return "txt";
+  if (ext === ".docx") return "docx";
+  if (ext === ".doc") return "doc";
   return "zip";
+}
+
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function parseTxtToPages(content) {
+  const text = String(content || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = text.split("\n");
+  const chapterRegex = /^(?:chapter|volume|prologue|epilogue|act|scene|part|section|interlude|side\s*story|\#+\s|第[0-9一二三四五六七八九十百千万]+[章|話|節|卷|巻])\b/i;
+
+  const pages = [];
+  let currentTitle = "Chapter 1";
+  let currentParagraphs = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (chapterRegex.test(line) && currentParagraphs.length > 0) {
+      const html = `<div class="novel-page font-serif leading-relaxed space-y-4 max-w-3xl mx-auto p-4 md:p-8"><h2 class="text-xl md:text-2xl font-bold mb-6">${escapeHtml(currentTitle)}</h2>` +
+        currentParagraphs.map((p) => `<p class="text-base md:text-lg">${escapeHtml(p)}</p>`).join("") +
+        `</div>`;
+      pages.push({ title: currentTitle, html });
+      currentTitle = line;
+      currentParagraphs = [];
+      continue;
+    }
+
+    if (line.length > 0) {
+      currentParagraphs.push(line);
+    }
+
+    if (currentParagraphs.length >= 80) {
+      const html = `<div class="novel-page font-serif leading-relaxed space-y-4 max-w-3xl mx-auto p-4 md:p-8"><h2 class="text-xl md:text-2xl font-bold mb-6">${escapeHtml(currentTitle)}</h2>` +
+        currentParagraphs.map((p) => `<p class="text-base md:text-lg">${escapeHtml(p)}</p>`).join("") +
+        `</div>`;
+      pages.push({ title: currentTitle, html });
+      currentParagraphs = [];
+      currentTitle = `Page ${pages.length + 1}`;
+    }
+  }
+
+  if (currentParagraphs.length > 0) {
+    const html = `<div class="novel-page font-serif leading-relaxed space-y-4 max-w-3xl mx-auto p-4 md:p-8"><h2 class="text-xl md:text-2xl font-bold mb-6">${escapeHtml(currentTitle)}</h2>` +
+      currentParagraphs.map((p) => `<p class="text-base md:text-lg">${escapeHtml(p)}</p>`).join("") +
+      `</div>`;
+    pages.push({ title: currentTitle, html });
+  }
+
+  if (pages.length === 0) {
+    pages.push({
+      title: "Content",
+      html: `<div class="novel-page font-serif leading-relaxed space-y-4 max-w-3xl mx-auto p-4 md:p-8"><p class="text-muted-foreground italic">Empty document</p></div>`,
+    });
+  }
+
+  return pages;
+}
+
+function parseDocxDocumentStreamer(buffer, slug, chapterFile) {
+  const entries = parseZipEntries(buffer, true);
+  const relsEntry = entries.find((e) => e.name === "word/_rels/document.xml.rels");
+  const docEntry = entries.find((e) => e.name === "word/document.xml");
+
+  const relMap = {};
+  if (relsEntry) {
+    const relsXml = extractZipEntry(buffer, relsEntry).toString("utf-8");
+    const relRegex = /<Relationship\s+([^>]+)\/>/gi;
+    let rMatch;
+    while ((rMatch = relRegex.exec(relsXml)) !== null) {
+      const attrs = rMatch[1];
+      const idMatch = attrs.match(/Id=["']([^"']+)["']/i);
+      const targetMatch = attrs.match(/Target=["']([^"']+)["']/i);
+      if (idMatch && targetMatch) {
+        let target = targetMatch[1];
+        if (!target.startsWith("word/")) {
+          target = "word/" + target.replace(/^\//, "");
+        }
+        relMap[idMatch[1]] = target;
+      }
+    }
+  }
+
+  if (!docEntry) {
+    return [{ title: "Error", html: "<p>Invalid DOCX: missing document.xml</p>" }];
+  }
+
+  const docXml = extractZipEntry(buffer, docEntry).toString("utf-8");
+  const pages = [];
+  let currentPageHtml = [];
+  let currentPageTitle = "Section 1";
+
+  const pRegex = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/gi;
+  let pMatch;
+
+  while ((pMatch = pRegex.exec(docXml)) !== null) {
+    const pContent = pMatch[1];
+
+    if (pContent.includes('w:type="page"') || pContent.includes("<w:lastRenderedPageBreak")) {
+      if (currentPageHtml.length > 0) {
+        pages.push({
+          title: currentPageTitle,
+          html: `<div class="novel-page font-serif leading-relaxed space-y-4 max-w-3xl mx-auto p-4 md:p-8">${currentPageHtml.join("")}</div>`,
+        });
+        currentPageHtml = [];
+        currentPageTitle = `Section ${pages.length + 1}`;
+      }
+    }
+
+    let imgHtml = "";
+    const imgRegex = /<a:blip[^>]+r:embed=["']([^"']+)["']/gi;
+    let blipMatch;
+    while ((blipMatch = imgRegex.exec(pContent)) !== null) {
+      const rId = blipMatch[1];
+      const targetPath = relMap[rId];
+      if (targetPath) {
+        const imgUrl = `/api/stream/manga-page?slug=${encodeURIComponent(slug)}&chapter=${encodeURIComponent(chapterFile)}&epubResource=${encodeURIComponent(targetPath)}`;
+        imgHtml += `<div class="my-4 flex justify-center"><img src="${imgUrl}" alt="illustration" class="max-w-full rounded-lg shadow-md max-h-[85vh] object-contain" /></div>`;
+      }
+    }
+
+    let pText = "";
+    const rRegex = /<w:r\b[^>]*>([\s\S]*?)<\/w:r>/gi;
+    let rMatch;
+    let isHeading = /w:pStyle\s+w:val=["']Heading/i.test(pContent);
+
+    while ((rMatch = rRegex.exec(pContent)) !== null) {
+      const rContent = rMatch[1];
+      const isBold = /<w:b\b/i.test(rContent);
+      const isItalic = /<w:i\b/i.test(rContent);
+      const tRegex = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/gi;
+      let tMatch;
+      let runText = "";
+      while ((tMatch = tRegex.exec(rContent)) !== null) {
+        runText += tMatch[1];
+      }
+      if (runText) {
+        let formatted = escapeHtml(runText);
+        if (isBold) formatted = `<strong>${formatted}</strong>`;
+        if (isItalic) formatted = `<em>${formatted}</em>`;
+        pText += formatted;
+      }
+    }
+
+    if (pText.trim() || imgHtml) {
+      if (isHeading) {
+        if (!currentPageTitle || currentPageTitle.startsWith("Section")) {
+          currentPageTitle = pText.replace(/<[^>]+>/g, "").trim() || currentPageTitle;
+        }
+        currentPageHtml.push(`<h2 class="text-xl md:text-2xl font-bold mt-6 mb-4">${pText}</h2>`);
+      } else if (pText.trim()) {
+        currentPageHtml.push(`<p class="text-base md:text-lg mb-4 text-justify leading-relaxed">${pText}</p>`);
+      }
+      if (imgHtml) {
+        currentPageHtml.push(imgHtml);
+      }
+    }
+
+    if (currentPageHtml.length >= 60) {
+      pages.push({
+        title: currentPageTitle,
+        html: `<div class="novel-page font-serif leading-relaxed space-y-4 max-w-3xl mx-auto p-4 md:p-8">${currentPageHtml.join("")}</div>`,
+      });
+      currentPageHtml = [];
+      currentPageTitle = `Section ${pages.length + 1}`;
+    }
+  }
+
+  if (currentPageHtml.length > 0) {
+    pages.push({
+      title: currentPageTitle,
+      html: `<div class="novel-page font-serif leading-relaxed space-y-4 max-w-3xl mx-auto p-4 md:p-8">${currentPageHtml.join("")}</div>`,
+    });
+  }
+
+  if (pages.length === 0) {
+    pages.push({
+      title: "Document",
+      html: `<div class="novel-page font-serif leading-relaxed space-y-4 max-w-3xl mx-auto p-4 md:p-8"><p class="text-muted-foreground italic">No text content found in DOCX</p></div>`,
+    });
+  }
+
+  return pages;
+}
+
+function parseDocToPages(buffer) {
+  const str = buffer.toString("binary");
+  const matches = str.match(/[\x20-\x7E\s]{4,}/g) || [];
+  const cleanLines = matches
+    .map((m) => m.trim())
+    .filter((m) => m.length > 3 && !/^(Normal|Heading|Title|Default|Font|Times|Calibri|Arial)/i.test(m));
+
+  return parseTxtToPages(cleanLines.join("\n\n"));
 }
 
 // Pure JS Tar Archive Parser
@@ -420,10 +627,21 @@ function parseEpubSpineEntries(buffer) {
     }
   }
 
-  const byName = new Map(allEntries.map((entry) => [entry.name, entry]));
+  const normMap = new Map();
+  for (const entry of allEntries) {
+    normMap.set(entry.name.replace(/\\/g, "/").toLowerCase().trim().replace(/^\//, ""), entry);
+  }
+  const findEntryByName = (p) => {
+    if (!p) return null;
+    const clean = p.replace(/\\/g, "/").toLowerCase().trim().replace(/^\//, "");
+    return normMap.get(clean) || allEntries.find((e) => {
+      const eNorm = e.name.replace(/\\/g, "/").toLowerCase().trim().replace(/^\//, "");
+      return eNorm === clean || eNorm.endsWith("/" + clean);
+    }) || null;
+  };
 
   const readEntryText = (name) => {
-    const entry = byName.get(name);
+    const entry = findEntryByName(name);
     if (!entry) return null;
     try {
       return extractZipEntry(buffer, entry).toString("utf-8");
@@ -520,7 +738,7 @@ function parseEpubSpineEntries(buffer) {
           const item = manifest.get(idref);
           if (!item) continue;
 
-          const entry = byName.get(item.path);
+          const entry = findEntryByName(item.path);
           if (!entry) continue;
 
           const ext = path.extname(entry.name).toLowerCase();
@@ -551,6 +769,33 @@ function parseEpubSpineEntries(buffer) {
     ...entry,
     type: IMAGE_EXTENSIONS_REGEX.test(entry.name) ? "image" : "html",
   }));
+}
+
+function rewriteEpubHtmlResources(html, currentFile, slug, chapterFile) {
+  const parts = currentFile.replace(/\\/g, "/").split("/");
+  parts.pop();
+  const baseDir = parts.length > 0 ? parts.join("/") + "/" : "";
+
+  return html.replace(
+    /<(img|image|source|link)\b([^>]*)>/gis,
+    (match, tag, attrs) => {
+      const tagName = String(tag).toLowerCase();
+      const isStylesheet = tagName === "link" && /\brel\s*=\s*["'][^"']*\bstylesheet\b[^"']*["']/i.test(attrs);
+      if (tagName === "link" && !isStylesheet) return match;
+
+      return attrs.replace(
+        /\b(src|href)\s*=\s*(["'])(.*?)\2/gi,
+        (attrMatch, attrName, quote, value) => {
+          if (/^(?:https?:|\/\/|data:|#)/i.test(value)) return attrMatch;
+          let cleanVal = value.split("#")[0].split("?")[0];
+          try { cleanVal = decodeURIComponent(cleanVal); } catch {}
+          const resolved = path.posix.normalize(path.posix.join(baseDir, cleanVal));
+          const resourceUrl = `/api/stream/manga-page?slug=${encodeURIComponent(slug)}&chapter=${encodeURIComponent(chapterFile)}&epubResource=${encodeURIComponent(resolved)}`;
+          return `${attrName}=${quote}${resourceUrl}${quote}`;
+        }
+      );
+    }
+  );
 }
 
 function extractZipEntry(buffer, entry) {
@@ -650,39 +895,42 @@ const server = http.createServer((req, res) => {
             const subItems = fs.readdirSync(folderPath, { withFileTypes: true });
             const subDirs = subItems.filter((d) => isDirEntry(d, folderPath)).sort((a, b) => naturalSort(a.name, b.name));
 
-            if (subDirs.length > 0) {
-              seasons = subDirs.map((s) => {
-                const sPath = path.join(folderPath, s.name);
-                const sFiles = fs.readdirSync(sPath, { withFileTypes: true })
-                  .filter((f) => isFileEntry(f, sPath) && /\.(mp4|mkv|webm|avi|mov|flv|ts|m4v)$/i.test(f.name))
-                  .map((f) => ({
-                    file: f.name,
-                    label: f.name.replace(/\.[^/.]+$/, ""),
-                    season: s.name,
-                    relativePath: path.join(s.name, f.name).replace(/\\/g, "/"),
-                    subtitles: [],
-                  }))
-                  .sort((a, b) => naturalSort(a.file, b.file));
-                return { name: s.name, episodes: sFiles };
-              });
-            } else {
-              const rootFiles = subItems
-                .filter((f) => isFileEntry(f, folderPath) && /\.(mp4|mkv|webm|avi|mov|flv|ts|m4v)$/i.test(f.name))
+          function scanAnimeSubDir(currentDir, relativeDir = "") {
+            try {
+              const subItems = fs.readdirSync(currentDir, { withFileTypes: true });
+              const vFiles = subItems
+                .filter((f) => isFileEntry(f, currentDir) && /\.(mp4|mkv|webm|avi|mov|flv|ts|m4v)$/i.test(f.name))
                 .map((f) => ({
                   file: f.name,
                   label: f.name.replace(/\.[^/.]+$/, ""),
-                  season: "Season 1",
-                  relativePath: f.name,
+                  season: relativeDir ? relativeDir.replace(/\\/g, "/") : "Season 1",
+                  relativePath: (relativeDir ? path.join(relativeDir, f.name) : f.name).replace(/\\/g, "/"),
                   subtitles: [],
                 }))
                 .sort((a, b) => naturalSort(a.file, b.file));
-              if (rootFiles.length > 0) {
-                seasons = [{ name: "Season 1", episodes: rootFiles }];
+
+              if (vFiles.length > 0) {
+                seasons.push({
+                  name: relativeDir ? relativeDir.replace(/\\/g, "/") : "Season 1",
+                  episodes: vFiles,
+                });
               }
+
+              for (const item of subItems) {
+                if (item.name.startsWith(".")) continue;
+                if (isDirEntry(item, currentDir)) {
+                  const subPath = path.join(currentDir, item.name);
+                  const subRel = relativeDir ? path.join(relativeDir, item.name).replace(/\\/g, "/") : item.name;
+                  scanAnimeSubDir(subPath, subRel);
+                }
+              }
+            } catch (err) {
+              console.warn(`Error scanning anime folder ${currentDir}:`, err.message);
             }
-          } catch (err) {
-            console.warn(`Error scanning anime folder ${dir.name}:`, err.message);
           }
+
+          scanAnimeSubDir(folderPath);
+          seasons.sort((a, b) => naturalSort(a.name, b.name));
 
           if (seasons.length > 0) {
             animeList.push({
@@ -707,50 +955,85 @@ const server = http.createServer((req, res) => {
           const slug = dir.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
           let chapters = [];
 
-          try {
-            const subItems = fs.readdirSync(folderPath, { withFileTypes: true });
+          function scanMangaSubDir(currentDir, relativeDir = "") {
+            try {
+              const subItems = fs.readdirSync(currentDir, { withFileTypes: true });
 
-            // Check for archives, PDFs, EPUBs
-            const archiveChapters = subItems
-              .filter((f) => isFileEntry(f, folderPath) && MANGA_FILE_REGEX.test(f.name))
-              .map((f) => ({
-                file: f.name,
-                label: f.name.replace(/\.[^/.]+$/, ""),
-                relativePath: f.name,
-                format: getMangaFormat(f.name),
-              }))
-              .sort((a, b) => naturalSort(a.file, b.file));
+              for (const item of subItems) {
+                if (item.name.startsWith(".")) continue;
+                const relPath = relativeDir ? path.join(relativeDir, item.name).replace(/\\/g, "/") : item.name;
 
-            // Check for chapter subdirectories
-            const folderChapters = subItems
-              .filter((d) => isDirEntry(d, folderPath) && !d.name.startsWith("."))
-              .map((d) => ({
-                file: d.name,
-                label: d.name,
-                relativePath: d.name,
-                format: "folder",
-              }))
-              .sort((a, b) => naturalSort(a.file, b.file));
+                if (isFileEntry(item, currentDir) && MANGA_FILE_REGEX.test(item.name)) {
+                  chapters.push({
+                    file: relPath,
+                    label: item.name.replace(/\.[^/.]+$/, ""),
+                    relativePath: relPath,
+                    group: relativeDir ? relativeDir.replace(/\\/g, "/") : "Main",
+                    format: getMangaFormat(item.name),
+                  });
+                }
+              }
 
-            // Check for loose root images
-            const looseImages = subItems.filter((f) => isFileEntry(f, folderPath) && IMAGE_EXTENSIONS_REGEX.test(f.name));
+              for (const item of subItems) {
+                if (item.name.startsWith(".")) continue;
+                if (isDirEntry(item, currentDir)) {
+                  const subPath = path.join(currentDir, item.name);
+                  const relPath = relativeDir ? path.join(relativeDir, item.name).replace(/\\/g, "/") : item.name;
 
-            if (archiveChapters.length > 0) {
-              chapters = archiveChapters;
-            } else if (folderChapters.length > 0) {
-              chapters = folderChapters;
-            } else if (looseImages.length > 0) {
-              chapters = [{
-                file: dir.name,
-                label: dir.name,
-                relativePath: "",
-                format: "folder",
-                pageCount: looseImages.length,
-              }];
-            }
-          } catch (err) {
-            console.warn(`Error scanning manga folder ${dir.name}:`, err.message);
+                  try {
+                    const nestedItems = fs.readdirSync(subPath, { withFileTypes: true });
+                    const imageFiles = nestedItems.filter((f) => isFileEntry(f, subPath) && IMAGE_EXTENSIONS_REGEX.test(f.name));
+                    const hasChildDirs = nestedItems.some((d) => isDirEntry(d, subPath) && !d.name.startsWith("."));
+                    const hasChildDocs = nestedItems.some((f) => isFileEntry(f, subPath) && MANGA_FILE_REGEX.test(f.name));
+
+                    if (imageFiles.length > 0 && !hasChildDirs && !hasChildDocs) {
+                      chapters.push({
+                        file: relPath,
+                        label: item.name,
+                        relativePath: relPath,
+                        group: relativeDir ? relativeDir.replace(/\\/g, "/") : "Main",
+                        format: "folder",
+                        pageCount: imageFiles.length,
+                      });
+                    } else {
+                      scanMangaSubDir(subPath, relPath);
+                    }
+                  } catch {}
+                }
+              }
+            } catch {}
           }
+
+          scanMangaSubDir(folderPath);
+
+          if (chapters.length === 0) {
+            try {
+              const subItems = fs.readdirSync(folderPath, { withFileTypes: true });
+              const looseImages = subItems.filter((f) => isFileEntry(f, folderPath) && IMAGE_EXTENSIONS_REGEX.test(f.name));
+              if (looseImages.length > 0) {
+                chapters.push({
+                  file: dir.name,
+                  label: dir.name,
+                  relativePath: "",
+                  group: "Main",
+                  format: "folder",
+                  pageCount: looseImages.length,
+                });
+              }
+            } catch {}
+          }
+
+          chapters.sort((a, b) => naturalSort(a.file, b.file));
+
+          const groupMap = new Map();
+          for (const ch of chapters) {
+            const g = ch.group || "Main";
+            if (!groupMap.has(g)) groupMap.set(g, []);
+            groupMap.get(g).push(ch);
+          }
+          const groups = Array.from(groupMap.entries())
+            .map(([name, chs]) => ({ name, chapters: chs }))
+            .sort((a, b) => naturalSort(a.name, b.name));
 
           if (chapters.length > 0) {
             mangaList.push({
@@ -758,6 +1041,7 @@ const server = http.createServer((req, res) => {
               folderName: dir.name,
               folderPath,
               chapters,
+              groups,
               chapterCount: chapters.length,
             });
           }
@@ -955,73 +1239,83 @@ const server = http.createServer((req, res) => {
       chapter = rawChapter || "";
     }
 
-    const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const norm = (s) => (s || "").replace(/\\/g, "/").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-");
+    const targetSlugNorm = norm(slug);
+    const targetChapterNorm = norm(chapter);
+    const chapterClean = chapter.replace(/\\/g, "/").trim();
 
     for (const mangaRoot of MANGA_PATHS) {
       if (!fs.existsSync(mangaRoot)) continue;
 
-      if (slug && chapter) {
-        const direct = path.join(mangaRoot, slug, chapter);
-        if (fs.existsSync(direct) && isSafePath(mangaRoot, direct)) return direct;
-      }
-      if (slug) {
-        const directSlug = path.join(mangaRoot, slug);
-        if (fs.existsSync(directSlug) && isSafePath(mangaRoot, directSlug)) {
-          if (!chapter || chapter === "Chapter 1" || chapter === "") return directSlug;
-        }
-      }
-      if (chapter) {
-        const directChapter = path.join(mangaRoot, chapter);
-        if (fs.existsSync(directChapter) && isSafePath(mangaRoot, directChapter)) return directChapter;
-      }
-
+      let matchedFolder = null;
       try {
-        const entries = fs.readdirSync(mangaRoot, { withFileTypes: true });
-
-        const rootArchive = entries.find((e) => isFileEntry(e, mangaRoot) && (
-          e.name === chapter ||
-          e.name.toLowerCase() === (chapter || "").toLowerCase() ||
-          e.name === slug ||
-          e.name.toLowerCase() === (slug || "").toLowerCase() ||
-          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase() ||
-          e.name.replace(/\.[^/.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase()
-        ));
-        if (rootArchive) {
-          const p = path.join(mangaRoot, rootArchive.name);
-          if (isSafePath(mangaRoot, p)) return p;
-        }
-
-        const targetFolder = entries.find((e) => isDirEntry(e, mangaRoot) && (
-          e.name === slug ||
-          e.name.toLowerCase() === (slug || "").toLowerCase() ||
-          e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === (slug || "").toLowerCase()
-        ));
-
-        if (targetFolder) {
-          const folderPath = path.join(mangaRoot, targetFolder.name);
-          if (!chapter || chapter === "Chapter 1" || chapter === "") {
-            if (isSafePath(mangaRoot, folderPath)) return folderPath;
+        const rootEntries = fs.readdirSync(mangaRoot, { withFileTypes: true });
+        for (const e of rootEntries) {
+          if (isFileEntry(e, mangaRoot)) {
+            const eNorm = norm(e.name);
+            if (eNorm === targetSlugNorm || eNorm === targetChapterNorm || e.name === chapter || e.name === slug) {
+              const p = path.join(mangaRoot, e.name);
+              if (isSafePath(mangaRoot, p)) return p;
+            }
+          } else if (isDirEntry(e, mangaRoot)) {
+            const eNorm = norm(e.name);
+            if (
+              eNorm === targetSlugNorm ||
+              e.name.toLowerCase() === slug.toLowerCase() ||
+              eNorm.includes(targetSlugNorm) ||
+              targetSlugNorm.includes(eNorm)
+            ) {
+              matchedFolder = path.join(mangaRoot, e.name);
+              break;
+            }
           }
-
-          const inChapter = path.join(folderPath, chapter);
-          if (fs.existsSync(inChapter) && isSafePath(mangaRoot, inChapter)) return inChapter;
-
-          const subEntries = fs.readdirSync(folderPath, { withFileTypes: true });
-          const subMatch = subEntries.find((s) => (
-            s.name === chapter ||
-            s.name.toLowerCase() === chapter.toLowerCase() ||
-            s.name.replace(/\.[^/.]+$/, "").toLowerCase() === chapter.replace(/\.[^/.]+$/, "").toLowerCase() ||
-            s.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === chapter.toLowerCase().replace(/[^a-z0-9]+/g, "-")
-          ));
-          if (subMatch) {
-            const p = path.join(folderPath, subMatch.name);
-            if (isSafePath(mangaRoot, p)) return p;
-          }
-
-          const hasImages = subEntries.some((f) => isFileEntry(f, folderPath) && IMAGE_EXTENSIONS_REGEX.test(f.name));
-          if (hasImages && isSafePath(mangaRoot, folderPath)) return folderPath;
         }
       } catch {}
+
+      if (matchedFolder && fs.existsSync(matchedFolder)) {
+        if (!chapter || chapter === "Chapter 1" || chapter === "") {
+          if (isSafePath(mangaRoot, matchedFolder)) return matchedFolder;
+        }
+
+        const direct1 = path.join(matchedFolder, chapterClean);
+        if (fs.existsSync(direct1) && isSafePath(mangaRoot, direct1)) return direct1;
+
+        function searchDir(currentDir) {
+          try {
+            const items = fs.readdirSync(currentDir, { withFileTypes: true });
+            for (const item of items) {
+              if (item.name.startsWith(".")) continue;
+              const fullItemPath = path.join(currentDir, item.name);
+              const relFromMatched = path.relative(matchedFolder, fullItemPath).replace(/\\/g, "/");
+
+              if (isFileEntry(item, currentDir)) {
+                if (
+                  relFromMatched.toLowerCase() === chapterClean.toLowerCase() ||
+                  norm(relFromMatched) === targetChapterNorm ||
+                  item.name.toLowerCase() === chapterClean.toLowerCase() ||
+                  norm(item.name) === targetChapterNorm ||
+                  item.name.toLowerCase().endsWith(chapterClean.toLowerCase())
+                ) {
+                  if (isSafePath(mangaRoot, fullItemPath)) return fullItemPath;
+                }
+              } else if (isDirEntry(item, currentDir)) {
+                if (
+                  relFromMatched.toLowerCase() === chapterClean.toLowerCase() ||
+                  norm(relFromMatched) === targetChapterNorm
+                ) {
+                  if (isSafePath(mangaRoot, fullItemPath)) return fullItemPath;
+                }
+                const found = searchDir(fullItemPath);
+                if (found) return found;
+              }
+            }
+          } catch {}
+          return null;
+        }
+
+        const res = searchDir(matchedFolder);
+        if (res) return res;
+      }
     }
     return null;
   }
@@ -1073,7 +1367,64 @@ const server = http.createServer((req, res) => {
             type: e.type || (IMAGE_EXTENSIONS_REGEX.test(e.name) ? "image" : "html"),
           })),
           isEpub: true,
+          isNovel: true,
           format: "epub",
+        }));
+        return;
+      }
+
+      // DOCX
+      if (stat.isFile() && ext === ".docx") {
+        const buffer = fs.readFileSync(targetPath);
+        const docPages = parseDocxDocumentStreamer(buffer, slug, chapter);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          pageCount: docPages.length,
+          pages: docPages.map((p, idx) => ({
+            index: idx,
+            name: p.title || `Section ${idx + 1}`,
+            type: "html",
+          })),
+          isDocx: true,
+          isNovel: true,
+          format: "docx",
+        }));
+        return;
+      }
+
+      // TXT
+      if (stat.isFile() && ext === ".txt") {
+        const rawText = fs.readFileSync(targetPath, "utf-8");
+        const txtPages = parseTxtToPages(rawText);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          pageCount: txtPages.length,
+          pages: txtPages.map((p, idx) => ({
+            index: idx,
+            name: p.title || `Section ${idx + 1}`,
+            type: "html",
+          })),
+          isTxt: true,
+          isNovel: true,
+          format: "txt",
+        }));
+        return;
+      }
+
+      // DOC
+      if (stat.isFile() && ext === ".doc") {
+        const rawBuffer = fs.readFileSync(targetPath);
+        const docPages = parseDocToPages(rawBuffer);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          pageCount: docPages.length,
+          pages: docPages.map((p, idx) => ({
+            index: idx,
+            name: p.title || `Section ${idx + 1}`,
+            type: "html",
+          })),
+          isNovel: true,
+          format: "doc",
         }));
         return;
       }
@@ -1299,19 +1650,116 @@ const server = http.createServer((req, res) => {
       // EPUB Streaming
       if (stat.isFile() && ext === ".epub") {
         const buffer = fs.readFileSync(targetPath);
+        const epubResource = parsedUrl.searchParams.get("epubResource") || parsedUrl.searchParams.get("resource");
+        const allZipEntries = parseZipEntries(buffer, true);
+
+        if (epubResource) {
+          const cleanResource = epubResource.replace(/\\/g, "/").replace(/^\//, "").toLowerCase();
+          const entry = allZipEntries.find((e) => {
+            const eNorm = e.name.replace(/\\/g, "/").replace(/^\//, "").toLowerCase();
+            return eNorm === cleanResource || eNorm.endsWith("/" + cleanResource);
+          });
+          if (!entry) {
+            res.writeHead(404, { "Content-Type": "text/plain" });
+            res.end("Resource not found");
+            return;
+          }
+          const fileBuf = extractZipEntry(buffer, entry);
+          const entryExt = path.extname(entry.name).toLowerCase();
+          res.writeHead(200, {
+            "Content-Type": MIME_TYPES[entryExt] || "application/octet-stream",
+            "Cache-Control": "public, max-age=86400",
+          });
+          res.end(fileBuf);
+          return;
+        }
+
         const entries = parseEpubSpineEntries(buffer);
-        if (pageIndex < 0 || pageIndex >= entries.length) {
+        const chosen = entries.length > 0 ? entries : allZipEntries;
+        const targetEntry = chosen[pageIndex] || chosen[0];
+        if (!targetEntry) {
           res.writeHead(404, { "Content-Type": "text/plain" });
           res.end("Page not found");
           return;
         }
-        const fileBuffer = extractZipEntry(buffer, entries[pageIndex]);
-        const entryExt = path.extname(entries[pageIndex].name).toLowerCase();
+
+        let fileBuffer = extractZipEntry(buffer, targetEntry);
+        const entryExt = path.extname(targetEntry.name).toLowerCase();
+        const mimeType = MIME_TYPES[entryExt] || "application/octet-stream";
+
+        if (entryExt === ".xhtml" || entryExt === ".html" || entryExt === ".htm") {
+          const rewrittenHtml = rewriteEpubHtmlResources(
+            fileBuffer.toString("utf-8"),
+            targetEntry.name,
+            slug,
+            chapter
+          );
+          fileBuffer = Buffer.from(rewrittenHtml, "utf-8");
+        }
+
         res.writeHead(200, {
-          "Content-Type": MIME_TYPES[entryExt] || "application/octet-stream",
+          "Content-Type": mimeType + (mimeType.startsWith("text/") ? "; charset=utf-8" : ""),
           "Cache-Control": "public, max-age=86400",
         });
         res.end(fileBuffer);
+        return;
+      }
+
+      // DOCX Streaming
+      if (stat.isFile() && ext === ".docx") {
+        const buffer = fs.readFileSync(targetPath);
+        const epubResource = parsedUrl.searchParams.get("epubResource") || parsedUrl.searchParams.get("resource");
+        if (epubResource) {
+          const entries = parseZipEntries(buffer, true);
+          const cleanResource = epubResource.replace(/^\//, "");
+          const entry = entries.find((e) => e.name === cleanResource || e.name === epubResource);
+          if (!entry) {
+            res.writeHead(404, { "Content-Type": "text/plain" });
+            res.end("Resource not found");
+            return;
+          }
+          const fileBuf = extractZipEntry(buffer, entry);
+          const entryExt = path.extname(entry.name).toLowerCase();
+          res.writeHead(200, {
+            "Content-Type": MIME_TYPES[entryExt] || "application/octet-stream",
+            "Cache-Control": "public, max-age=86400",
+          });
+          res.end(fileBuf);
+          return;
+        }
+        const docPages = parseDocxDocumentStreamer(buffer, slug, chapter);
+        const page = docPages[pageIndex] || docPages[0];
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "public, max-age=86400",
+        });
+        res.end(page ? page.html : "<p>Empty document</p>");
+        return;
+      }
+
+      // TXT Streaming
+      if (stat.isFile() && ext === ".txt") {
+        const rawText = fs.readFileSync(targetPath, "utf-8");
+        const txtPages = parseTxtToPages(rawText);
+        const page = txtPages[pageIndex] || txtPages[0];
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "public, max-age=86400",
+        });
+        res.end(page ? page.html : "<p>Empty document</p>");
+        return;
+      }
+
+      // DOC Streaming
+      if (stat.isFile() && ext === ".doc") {
+        const rawBuffer = fs.readFileSync(targetPath);
+        const docPages = parseDocToPages(rawBuffer);
+        const page = docPages[pageIndex] || docPages[0];
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "public, max-age=86400",
+        });
+        res.end(page ? page.html : "<p>Empty document</p>");
         return;
       }
 

@@ -261,7 +261,10 @@ function LibraryListRow({
 
 function LibraryPage() {
   const { mode } = useMediaMode();
-  const copy = MODE_COPY[mode];
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const currentMode = mounted ? mode : "ANIME";
+  const copy = MODE_COPY[currentMode];
   const { library, patch } = useLibrary();
 
   const { data: scanState, refetch: refetchScan } = useQuery({
