@@ -18,6 +18,7 @@ import {
   Check,
   Star,
   Trophy,
+  BarChart3,
 } from "lucide-react";
 import { Cover, countdown } from "@/components/AnimeCard";
 import { AiPanel } from "@/components/AiPanel";
@@ -1094,7 +1095,7 @@ function AnimeDetail() {
                                 : (watch?.positionSeconds ?? 0),
                             })
                           }
-                          className="group relative flex flex-col p-3 rounded-lg border border-border bg-card/60 hover:bg-accent/70 hover:border-primary/40 transition-all text-left overflow-hidden active:scale-[0.98]"
+                          className="group relative flex flex-col p-3 rounded-lg border border-border bg-surface hover:border-primary/50 transition-all duration-200 text-left overflow-hidden active:scale-[0.98]"
                         >
                           <div className="flex items-start justify-between w-full gap-2">
                             <span className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors line-clamp-2 break-words leading-snug">
@@ -1230,7 +1231,7 @@ function AnimeDetail() {
                                   initialPage: isComplete ? 1 : (read?.pageNumber ?? 1),
                                 })
                               }
-                              className="group flex flex-col p-3 rounded-lg border border-border bg-card/60 hover:bg-accent/70 hover:border-primary/40 transition-all text-left overflow-hidden active:scale-[0.98]"
+                              className="group flex flex-col p-3 rounded-lg border border-border bg-surface hover:border-primary/50 transition-all duration-200 text-left overflow-hidden active:scale-[0.98]"
                             >
                               <div className="flex items-start justify-between w-full gap-2">
                                 <span className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors line-clamp-2 break-words leading-snug">

@@ -267,7 +267,7 @@ export function UnlinkedFolderModal({
                                 onDirectPlay(folder, s.name, ep.file);
                               }
                             }}
-                            className="group flex items-center justify-between p-2.5 rounded-lg border border-border bg-card/60 hover:bg-accent/70 hover:border-primary/40 transition-all text-left overflow-hidden gap-2"
+                            className="group flex items-center justify-between p-2.5 rounded-lg border border-border bg-surface hover:border-primary/50 transition-all duration-200 text-left overflow-hidden gap-2"
                           >
                             <span className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors truncate">
                               {ep.label}
@@ -295,7 +295,7 @@ export function UnlinkedFolderModal({
                           onDirectPlay(folder, "", ch.file);
                         }
                       }}
-                      className="group flex items-center justify-between p-2.5 rounded-lg border border-border bg-card/60 hover:bg-accent/70 hover:border-primary/40 transition-all text-left overflow-hidden gap-2"
+                      className="group flex items-center justify-between p-2.5 rounded-lg border border-border bg-surface hover:border-primary/50 transition-all duration-200 text-left overflow-hidden gap-2"
                     >
                       <span className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors truncate">
                         {ch.label}

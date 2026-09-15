@@ -96,6 +96,12 @@ export function NotificationsDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const { library, patch } = useLibrary();
   const [refreshing, setRefreshing] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [filterTab, setFilterTab] = useState<
     "ALL" | "URGENT" | "CURRENT" | "PLANNING"
   >("ALL");
@@ -351,7 +357,7 @@ export function NotificationsDropdown() {
         title="Airing Schedule Notifications"
       >
         <Bell className="h-4 w-4" />
-        {unreadCount > 0 ? (
+        {mounted && unreadCount > 0 ? (
           <span
             className={cn(
               "absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-primary-foreground",
