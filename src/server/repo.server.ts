@@ -1,11 +1,13 @@
 /**
  * Server-only data layer.
  *
- * Uses a robust, local SQLite database via @libsql/client.
+ * Uses a robust, local SQLite database via @libsql/client when local,
+ * and Cloudflare D1 when deployed to Cloudflare Pages.
  * Full offline/local-first data persistence with zero native build crashes.
  */
 import {
   normalizeTags,
+  type CustomLink,
   type LibraryEntry,
   type MediaType,
   type Note,
@@ -29,6 +31,7 @@ export type SettingsRow = {
   theme: string;
   light_theme: string;
   dark_theme: string;
+  font?: string;
   media_mode: string;
   tunnel_url?: string;
   stream_secret?: string;
@@ -49,7 +52,8 @@ export const DEFAULT_SETTINGS_ROW: SettingsRow = {
   spoiler_free: 1,
   theme: "dark",
   light_theme: "paper",
-  dark_theme: "koka",
+  dark_theme: "umi",
+  font: "default",
   media_mode: "ANIME",
   tunnel_url: "",
   stream_secret: "",
@@ -82,6 +86,7 @@ export type Repo = {
     notes: Note[],
     types: MediaType[],
   ): Promise<void>;
+  clearLibraryAndNotes(userId: string): Promise<void>;
 
   logImport(
     userId: string,
@@ -173,7 +178,8 @@ function sqliteRepo(): Repo {
           row["spoiler_free"] !== null ? Number(row["spoiler_free"]) : 1,
         theme: row["theme"] ? String(row["theme"]) : "dark",
         light_theme: row["light_theme"] ? String(row["light_theme"]) : "paper",
-        dark_theme: row["dark_theme"] ? String(row["dark_theme"]) : "koka",
+        dark_theme: row["dark_theme"] ? String(row["dark_theme"]) : "umi",
+        font: row["font"] ? String(row["font"]) : "default",
         media_mode: row["media_mode"] ? String(row["media_mode"]) : "ANIME",
         tunnel_url: row["tunnel_url"] ? String(row["tunnel_url"]) : "",
         stream_secret: row["stream_secret"] ? String(row["stream_secret"]) : "",
@@ -182,8 +188,8 @@ function sqliteRepo(): Repo {
     async saveSettings(userId: string, row: SettingsRow): Promise<void> {
       const db = await ensureDbInitialized();
       await db.execute({
-        sql: `INSERT INTO settings (user_id, gemini_key, model, anilist_user, spoiler_free, theme, light_theme, dark_theme, media_mode, tunnel_url, stream_secret, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        sql: `INSERT INTO settings (user_id, gemini_key, model, anilist_user, spoiler_free, theme, light_theme, dark_theme, font, media_mode, tunnel_url, stream_secret, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(user_id) DO UPDATE SET
            gemini_key = excluded.gemini_key,
            model = excluded.model,
@@ -192,6 +198,7 @@ function sqliteRepo(): Repo {
            theme = excluded.theme,
            light_theme = excluded.light_theme,
            dark_theme = excluded.dark_theme,
+           font = excluded.font,
            media_mode = excluded.media_mode,
            tunnel_url = excluded.tunnel_url,
            stream_secret = excluded.stream_secret,
@@ -205,6 +212,7 @@ function sqliteRepo(): Repo {
           row.theme,
           row.light_theme,
           row.dark_theme,
+          row.font ?? "default",
           row.media_mode,
           row.tunnel_url ?? "",
           row.stream_secret ?? "",
@@ -234,6 +242,14 @@ function sqliteRepo(): Repo {
           r["repeat_count"] !== null && r["repeat_count"] !== undefined
             ? Number(r["repeat_count"])
             : null,
+        isRewatching: Number(r["is_rewatching"] ?? 0) === 1,
+        customLinks: (() => {
+          try {
+            return JSON.parse(String(r["custom_links"] ?? "[]")) as CustomLink[];
+          } catch {
+            return [];
+          }
+        })(),
         tags: normalizeTags(JSON.parse(String(r["tags"] ?? "[]")) as string[]),
         customLists: normalizeTags(
           JSON.parse(String(r["custom_lists"] ?? "[]")) as string[],
@@ -251,9 +267,9 @@ function sqliteRepo(): Repo {
       const stmts = entries.map((e) => ({
         sql: `INSERT INTO library_entries (
           user_id, media_type, media_id, status, progress, score, favorite,
-          started_at, completed_at, repeat_count, tags, custom_lists, media,
+          started_at, completed_at, repeat_count, is_rewatching, custom_links, tags, custom_lists, media,
           updated_at, added_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(user_id, media_type, media_id) DO UPDATE SET
           status = excluded.status,
           progress = excluded.progress,
@@ -262,6 +278,8 @@ function sqliteRepo(): Repo {
           started_at = excluded.started_at,
           completed_at = excluded.completed_at,
           repeat_count = excluded.repeat_count,
+          is_rewatching = excluded.is_rewatching,
+          custom_links = excluded.custom_links,
           tags = excluded.tags,
           custom_lists = excluded.custom_lists,
           media = excluded.media,
@@ -277,6 +295,8 @@ function sqliteRepo(): Repo {
           e.startedAt ?? null,
           e.completedAt ?? null,
           e.repeat ?? null,
+          e.isRewatching ? 1 : 0,
+          JSON.stringify(e.customLinks ?? []),
           JSON.stringify(normalizeTags(e.tags)),
           JSON.stringify(normalizeTags(e.customLists)),
           JSON.stringify(e.media),
@@ -374,6 +394,22 @@ function sqliteRepo(): Repo {
       await db.batch(deleteStmts, "write");
       await this.saveNotes(userId, notes);
     },
+    async clearLibraryAndNotes(userId: string): Promise<void> {
+      const db = await ensureDbInitialized();
+      await db.batch(
+        [
+          {
+            sql: "DELETE FROM library_entries WHERE user_id = ?",
+            args: [userId],
+          },
+          {
+            sql: "DELETE FROM notes WHERE user_id = ?",
+            args: [userId],
+          },
+        ],
+        "write",
+      );
+    },
 
     async logImport(
       userId: string,
@@ -402,9 +438,144 @@ function sqliteRepo(): Repo {
   };
 }
 
+let d1SchemaReady = false;
+async function ensureD1Schema(db: D1Database) {
+  if (d1SchemaReady) return;
+  const stmts = [
+    `CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS settings (
+      user_id TEXT PRIMARY KEY,
+      gemini_key TEXT,
+      model TEXT,
+      anilist_user TEXT,
+      spoiler_free INTEGER NOT NULL DEFAULT 1,
+      theme TEXT NOT NULL DEFAULT 'dark',
+      light_theme TEXT NOT NULL DEFAULT 'paper',
+      dark_theme TEXT NOT NULL DEFAULT 'umi',
+      font TEXT NOT NULL DEFAULT 'default',
+      media_mode TEXT NOT NULL DEFAULT 'ANIME',
+      tunnel_url TEXT,
+      stream_secret TEXT,
+      updated_at INTEGER
+    )`,
+    `CREATE TABLE IF NOT EXISTS library_entries (
+      user_id TEXT NOT NULL,
+      media_type TEXT NOT NULL,
+      media_id INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      progress INTEGER NOT NULL DEFAULT 0,
+      score REAL,
+      favorite INTEGER NOT NULL DEFAULT 0,
+      started_at TEXT,
+      completed_at TEXT,
+      repeat_count INTEGER,
+      is_rewatching INTEGER NOT NULL DEFAULT 0,
+      custom_links TEXT NOT NULL DEFAULT '[]',
+      tags TEXT NOT NULL DEFAULT '[]',
+      custom_lists TEXT NOT NULL DEFAULT '[]',
+      media TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      added_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, media_type, media_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_library_status ON library_entries (user_id, media_type, status)`,
+    `CREATE INDEX IF NOT EXISTS idx_library_updated ON library_entries (user_id, media_type, updated_at DESC)`,
+    `CREATE TABLE IF NOT EXISTS notes (
+      user_id TEXT NOT NULL,
+      media_type TEXT NOT NULL,
+      media_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      tags TEXT NOT NULL DEFAULT '[]',
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, media_type, media_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes (user_id, media_type, updated_at DESC)`,
+    `CREATE TABLE IF NOT EXISTS import_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      source TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS watch_progress (
+      slug TEXT NOT NULL,
+      season TEXT NOT NULL,
+      episode_file TEXT NOT NULL,
+      position_seconds REAL NOT NULL DEFAULT 0,
+      duration_seconds REAL NOT NULL DEFAULT 0,
+      completed INTEGER NOT NULL DEFAULT 0,
+      last_watched_at TEXT NOT NULL,
+      PRIMARY KEY (slug, season, episode_file)
+    )`,
+    `CREATE TABLE IF NOT EXISTS read_progress (
+      slug TEXT NOT NULL,
+      chapter_file TEXT NOT NULL,
+      page_number INTEGER NOT NULL DEFAULT 1,
+      total_pages INTEGER NOT NULL DEFAULT 1,
+      completed INTEGER NOT NULL DEFAULT 0,
+      last_read_at TEXT NOT NULL,
+      PRIMARY KEY (slug, chapter_file)
+    )`,
+    `CREATE TABLE IF NOT EXISTS local_media_links (
+      device_id TEXT NOT NULL DEFAULT 'default',
+      media_type TEXT NOT NULL,
+      media_id INTEGER NOT NULL,
+      folder_slug TEXT NOT NULL,
+      folder_name TEXT NOT NULL,
+      folder_path TEXT NOT NULL,
+      custom_title TEXT,
+      linked_at INTEGER NOT NULL,
+      PRIMARY KEY (media_type, media_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS metadata_cache (
+      cache_key TEXT PRIMARY KEY,
+      payload TEXT NOT NULL,
+      fetched_at TEXT NOT NULL
+    )`,
+  ];
+
+  for (const sql of stmts) {
+    try {
+      await db.prepare(sql).run();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Safe migrations
+  const migrations = [
+    "ALTER TABLE settings ADD COLUMN font TEXT NOT NULL DEFAULT 'default'",
+    "ALTER TABLE settings ADD COLUMN tunnel_url TEXT",
+    "ALTER TABLE settings ADD COLUMN stream_secret TEXT",
+    "ALTER TABLE library_entries ADD COLUMN is_rewatching INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE library_entries ADD COLUMN custom_links TEXT NOT NULL DEFAULT '[]'",
+    "ALTER TABLE local_media_links ADD COLUMN device_id TEXT DEFAULT 'default'",
+  ];
+  for (const m of migrations) {
+    try {
+      await db.prepare(m).run();
+    } catch {
+      /* column already exists */
+    }
+  }
+
+  d1SchemaReady = true;
+}
+
 function d1Repo(d1: D1Database): Repo {
+  const ready = () => ensureD1Schema(d1);
+
   return {
     async userByEmail(email: string): Promise<StoredUser | null> {
+      await ready();
       const row = await d1
         .prepare("SELECT * FROM users WHERE email = ? LIMIT 1")
         .bind(email)
@@ -419,6 +590,7 @@ function d1Repo(d1: D1Database): Repo {
       };
     },
     async userById(id: string): Promise<StoredUser | null> {
+      await ready();
       const row = await d1
         .prepare("SELECT * FROM users WHERE id = ? LIMIT 1")
         .bind(id)
@@ -433,6 +605,7 @@ function d1Repo(d1: D1Database): Repo {
       };
     },
     async createUser(user: StoredUser): Promise<void> {
+      await ready();
       await d1
         .prepare(
           "INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -447,12 +620,14 @@ function d1Repo(d1: D1Database): Repo {
         .run();
     },
     async updateUserName(id: string, name: string): Promise<void> {
+      await ready();
       await d1
         .prepare("UPDATE users SET name = ? WHERE id = ?")
         .bind(name, id)
         .run();
     },
     async updateUserPassword(id: string, hash: string): Promise<void> {
+      await ready();
       await d1
         .prepare("UPDATE users SET password_hash = ? WHERE id = ?")
         .bind(hash, id)
@@ -460,6 +635,7 @@ function d1Repo(d1: D1Database): Repo {
     },
 
     async getSettings(userId: string): Promise<SettingsRow> {
+      await ready();
       const row = await d1
         .prepare("SELECT * FROM settings WHERE user_id = ? LIMIT 1")
         .bind(userId)
@@ -475,17 +651,19 @@ function d1Repo(d1: D1Database): Repo {
             : 1,
         theme: row["theme"] ? String(row["theme"]) : "dark",
         light_theme: row["light_theme"] ? String(row["light_theme"]) : "paper",
-        dark_theme: row["dark_theme"] ? String(row["dark_theme"]) : "koka",
+        dark_theme: row["dark_theme"] ? String(row["dark_theme"]) : "umi",
+        font: row["font"] ? String(row["font"]) : "default",
         media_mode: row["media_mode"] ? String(row["media_mode"]) : "ANIME",
         tunnel_url: row["tunnel_url"] ? String(row["tunnel_url"]) : "",
         stream_secret: row["stream_secret"] ? String(row["stream_secret"]) : "",
       };
     },
     async saveSettings(userId: string, row: SettingsRow): Promise<void> {
+      await ready();
       await d1
         .prepare(
-          `INSERT INTO settings (user_id, gemini_key, model, anilist_user, spoiler_free, theme, light_theme, dark_theme, media_mode, tunnel_url, stream_secret, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO settings (user_id, gemini_key, model, anilist_user, spoiler_free, theme, light_theme, dark_theme, font, media_mode, tunnel_url, stream_secret, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(user_id) DO UPDATE SET
              gemini_key = excluded.gemini_key,
              model = excluded.model,
@@ -494,6 +672,7 @@ function d1Repo(d1: D1Database): Repo {
              theme = excluded.theme,
              light_theme = excluded.light_theme,
              dark_theme = excluded.dark_theme,
+             font = excluded.font,
              media_mode = excluded.media_mode,
              tunnel_url = excluded.tunnel_url,
              stream_secret = excluded.stream_secret,
@@ -508,6 +687,7 @@ function d1Repo(d1: D1Database): Repo {
           row.theme,
           row.light_theme,
           row.dark_theme,
+          row.font ?? "default",
           row.media_mode,
           row.tunnel_url ?? "",
           row.stream_secret ?? "",
@@ -517,6 +697,7 @@ function d1Repo(d1: D1Database): Repo {
     },
 
     async listLibrary(userId: string): Promise<LibraryEntry[]> {
+      await ready();
       const res = await d1
         .prepare("SELECT * FROM library_entries WHERE user_id = ?")
         .bind(userId)
@@ -536,6 +717,14 @@ function d1Repo(d1: D1Database): Repo {
           r["repeat_count"] !== null && r["repeat_count"] !== undefined
             ? Number(r["repeat_count"])
             : null,
+        isRewatching: Number(r["is_rewatching"] ?? 0) === 1,
+        customLinks: (() => {
+          try {
+            return JSON.parse(String(r["custom_links"] ?? "[]")) as CustomLink[];
+          } catch {
+            return [];
+          }
+        })(),
         tags: normalizeTags(JSON.parse(String(r["tags"] ?? "[]")) as string[]),
         customLists: normalizeTags(
           JSON.parse(String(r["custom_lists"] ?? "[]")) as string[],
@@ -549,11 +738,12 @@ function d1Repo(d1: D1Database): Repo {
       entries: LibraryEntry[],
     ): Promise<void> {
       if (entries.length === 0) return;
+      await ready();
       const stmts = entries.map((e) =>
         d1
           .prepare(
-            `INSERT INTO library_entries (user_id, media_type, media_id, status, progress, score, favorite, started_at, completed_at, repeat_count, tags, custom_lists, media, updated_at, added_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `INSERT INTO library_entries (user_id, media_type, media_id, status, progress, score, favorite, started_at, completed_at, repeat_count, is_rewatching, custom_links, tags, custom_lists, media, updated_at, added_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(user_id, media_type, media_id) DO UPDATE SET
                status = excluded.status,
                progress = excluded.progress,
@@ -562,6 +752,8 @@ function d1Repo(d1: D1Database): Repo {
                started_at = excluded.started_at,
                completed_at = excluded.completed_at,
                repeat_count = excluded.repeat_count,
+               is_rewatching = excluded.is_rewatching,
+               custom_links = excluded.custom_links,
                tags = excluded.tags,
                custom_lists = excluded.custom_lists,
                media = excluded.media,
@@ -577,7 +769,9 @@ function d1Repo(d1: D1Database): Repo {
             e.favorite ? 1 : 0,
             e.startedAt ?? null,
             e.completedAt ?? null,
-            e.repeat ?? 0,
+            e.repeat ?? null,
+            e.isRewatching ? 1 : 0,
+            JSON.stringify(e.customLinks ?? []),
             JSON.stringify(normalizeTags(e.tags)),
             JSON.stringify(normalizeTags(e.customLists)),
             JSON.stringify(e.media),
@@ -592,6 +786,7 @@ function d1Repo(d1: D1Database): Repo {
       type: MediaType,
       mediaId: number,
     ): Promise<void> {
+      await ready();
       await d1
         .prepare(
           "DELETE FROM library_entries WHERE user_id = ? AND media_type = ? AND media_id = ?",
@@ -604,6 +799,7 @@ function d1Repo(d1: D1Database): Repo {
       entries: LibraryEntry[],
       types: MediaType[],
     ): Promise<void> {
+      await ready();
       const deleteStmts = types.map((t) =>
         d1
           .prepare(
@@ -616,6 +812,7 @@ function d1Repo(d1: D1Database): Repo {
     },
 
     async listNotes(userId: string): Promise<Note[]> {
+      await ready();
       const res = await d1
         .prepare("SELECT * FROM notes WHERE user_id = ?")
         .bind(userId)
@@ -632,6 +829,7 @@ function d1Repo(d1: D1Database): Repo {
     },
     async saveNotes(userId: string, notes: Note[]): Promise<void> {
       if (notes.length === 0) return;
+      await ready();
       const stmts = notes.map((n) =>
         d1
           .prepare(
@@ -660,6 +858,7 @@ function d1Repo(d1: D1Database): Repo {
       type: MediaType,
       mediaId: number,
     ): Promise<void> {
+      await ready();
       await d1
         .prepare(
           "DELETE FROM notes WHERE user_id = ? AND media_type = ? AND media_id = ?",
@@ -672,6 +871,7 @@ function d1Repo(d1: D1Database): Repo {
       notes: Note[],
       types: MediaType[],
     ): Promise<void> {
+      await ready();
       const deleteStmts = types.map((t) =>
         d1
           .prepare("DELETE FROM notes WHERE user_id = ? AND media_type = ?")
@@ -680,11 +880,23 @@ function d1Repo(d1: D1Database): Repo {
       await d1.batch(deleteStmts);
       await this.saveNotes(userId, notes);
     },
+    async clearLibraryAndNotes(userId: string): Promise<void> {
+      await ready();
+      await d1
+        .prepare("DELETE FROM library_entries WHERE user_id = ?")
+        .bind(userId)
+        .run();
+      await d1
+        .prepare("DELETE FROM notes WHERE user_id = ?")
+        .bind(userId)
+        .run();
+    },
 
     async logImport(
       userId: string,
       entry: { source: string; mode: string; count: number },
     ): Promise<void> {
+      await ready();
       await d1
         .prepare(
           "INSERT INTO import_log (user_id, source, mode, count, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -693,6 +905,7 @@ function d1Repo(d1: D1Database): Repo {
         .run();
     },
     async listImportLog(userId: string): Promise<ImportLogRow[]> {
+      await ready();
       const res = await d1
         .prepare(
           "SELECT id, source, mode, count, created_at FROM import_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 20",

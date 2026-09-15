@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Flame,
   ListChecks,
+  Play,
   RefreshCw,
   Star,
 } from "lucide-react";
@@ -228,7 +229,8 @@ function Dashboard() {
                       key={e.media.id}
                       to="/anime/$id"
                       params={{ id: String(e.media.id) }}
-                      className="flex items-center gap-3 p-3 transition-colors hover:bg-secondary/60"
+                      data-card-press
+                      className="flex items-center gap-3 p-3 transition-all duration-150 hover:bg-secondary/60 active:scale-[0.98] active:opacity-80 card-pressable"
                     >
                       <img
                         src={e.media.cover ?? ""}
@@ -244,7 +246,49 @@ function Dashboard() {
                           Episode {e.media.nextEpisode?.episode} · {timeStr}
                         </p>
                       </div>
-                      <div className="text-right">
+                      <div className="flex items-center gap-2 text-right">
+                        {e.progress > 0 ? (
+                          <span
+                            className="hidden sm:inline-block rounded-full bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                            title={`You have watched ${e.progress} episodes`}
+                          >
+                            {e.progress}/{(e.media.nextEpisode?.episode ?? 1) - 1}
+                          </span>
+                        ) : null}
+
+                        {(() => {
+                          const primaryLink =
+                            (e.customLinks ?? []).find(
+                              (l) => l.isPrimary && l.url.trim(),
+                            ) ??
+                            (e.customLinks ?? []).find((l) => l.url.trim()) ??
+                            null;
+                          if (!primaryLink) return null;
+                          return (
+                            <button
+                              type="button"
+                              onClick={(evt) => {
+                                evt.preventDefault();
+                                evt.stopPropagation();
+                                window.open(
+                                  primaryLink.url,
+                                  "_blank",
+                                  "noopener,noreferrer",
+                                );
+                              }}
+                              title={`Play (${primaryLink.label || "External"})`}
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-all duration-150 active:scale-95",
+                                isWithin3Hours
+                                  ? "bg-destructive/15 text-destructive hover:bg-destructive/25"
+                                  : "bg-primary/10 text-primary hover:bg-primary/20",
+                              )}
+                            >
+                              <Play className="h-3 w-3 fill-current" />
+                              <span>Play</span>
+                            </button>
+                          );
+                        })()}
                         <span
                           className={cn(
                             "inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold",

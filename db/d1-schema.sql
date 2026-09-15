@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS settings (
   spoiler_free  INTEGER NOT NULL DEFAULT 1,
   theme         TEXT NOT NULL DEFAULT 'dark',
   light_theme   TEXT NOT NULL DEFAULT 'paper',
-  dark_theme    TEXT NOT NULL DEFAULT 'koka',
+  dark_theme    TEXT NOT NULL DEFAULT 'umi',
+  font          TEXT NOT NULL DEFAULT 'default',
   media_mode    TEXT NOT NULL DEFAULT 'ANIME',
   tunnel_url    TEXT,
   stream_secret TEXT,
@@ -30,21 +31,23 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 CREATE TABLE IF NOT EXISTS library_entries (
-  user_id      TEXT    NOT NULL,
-  media_type   TEXT    NOT NULL,     -- ANIME | MANGA
-  media_id     INTEGER NOT NULL,     -- AniList id
-  status       TEXT    NOT NULL,     -- CURRENT | PLANNING | COMPLETED | PAUSED | DROPPED | REPEATING
-  progress     INTEGER NOT NULL DEFAULT 0,
-  score        REAL,                 -- decimals supported (8.5)
-  favorite     INTEGER NOT NULL DEFAULT 0,
-  started_at   TEXT,
-  completed_at TEXT,
-  repeat_count INTEGER,
-  tags         TEXT    NOT NULL DEFAULT '[]',   -- JSON array
-  custom_lists TEXT    NOT NULL DEFAULT '[]',   -- JSON array
-  media        TEXT    NOT NULL,     -- JSON snapshot of the AniList media
-  updated_at   INTEGER NOT NULL,
-  added_at     INTEGER NOT NULL,
+  user_id       TEXT    NOT NULL,
+  media_type    TEXT    NOT NULL,     -- ANIME | MANGA
+  media_id      INTEGER NOT NULL,     -- AniList id
+  status        TEXT    NOT NULL,     -- CURRENT | PLANNING | COMPLETED | PAUSED | DROPPED | REPEATING
+  progress      INTEGER NOT NULL DEFAULT 0,
+  score         REAL,                 -- decimals supported (8.5)
+  favorite      INTEGER NOT NULL DEFAULT 0,
+  started_at    TEXT,
+  completed_at  TEXT,
+  repeat_count  INTEGER,
+  is_rewatching INTEGER NOT NULL DEFAULT 0,
+  custom_links  TEXT    NOT NULL DEFAULT '[]',   -- JSON array of {label, url, isPrimary}
+  tags          TEXT    NOT NULL DEFAULT '[]',   -- JSON array
+  custom_lists  TEXT    NOT NULL DEFAULT '[]',   -- JSON array
+  media         TEXT    NOT NULL,     -- JSON snapshot of the AniList media
+  updated_at    INTEGER NOT NULL,
+  added_at      INTEGER NOT NULL,
   PRIMARY KEY (user_id, media_type, media_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

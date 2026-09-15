@@ -1,7 +1,12 @@
 export type MediaType = "ANIME" | "MANGA";
 
 export type WatchStatus =
-  "CURRENT" | "PLANNING" | "COMPLETED" | "PAUSED" | "DROPPED" | "REPEATING";
+  | "CURRENT"
+  | "PLANNING"
+  | "COMPLETED"
+  | "PAUSED"
+  | "DROPPED"
+  | "REPEATING";
 
 export const STATUS_LABEL: Record<WatchStatus, string> = {
   CURRENT: "Watching",
@@ -67,6 +72,21 @@ export const STATUS_ORDER: WatchStatus[] = [
   "DROPPED",
 ];
 
+export type StatusDistributionItem = {
+  status: string;
+  amount: number;
+};
+
+export type MediaRanking = {
+  id: number;
+  rank: number;
+  type: string;
+  context: string;
+  year?: number | null;
+  season?: string | null;
+  allTime?: boolean | null;
+};
+
 export type AnimeMedia = {
   id: number;
   malId?: number | null;
@@ -89,11 +109,14 @@ export type AnimeMedia = {
   genres?: string[];
   studios?: string[];
   averageScore?: number | null;
+  meanScore?: number | null;
   popularity?: number | null;
   siteUrl?: string | null;
   description?: string | null;
   startDate?: string | null;
   nextEpisode?: { episode: number; airingAt: number } | null;
+  rankings?: MediaRanking[];
+  statusDistribution?: StatusDistributionItem[];
 };
 
 /** Total units (episodes for anime, chapters for manga). */
@@ -107,6 +130,12 @@ export function mediaTypeOf(media: AnimeMedia): MediaType {
   return media.type === "MANGA" ? "MANGA" : "ANIME";
 }
 
+export type CustomLink = {
+  label: string;
+  url: string;
+  isPrimary: boolean;
+};
+
 export type LibraryEntry = {
   media: AnimeMedia;
   status: WatchStatus;
@@ -119,6 +148,10 @@ export type LibraryEntry = {
   completedAt?: string | null;
   /** times rewatched / reread */
   repeat?: number | null;
+  /** whether user is currently rewatching / rereading */
+  isRewatching?: boolean;
+  /** Custom user links (e.g. streaming site, seasons) */
+  customLinks?: CustomLink[];
   /** Custom user tags e.g. ["ecchi", "fav", "must-watch"] */
   tags?: string[];
   /** Custom lists e.g. ["calm"] */
@@ -154,6 +187,8 @@ export type Note = {
   updatedAt: number;
 };
 
+export type FontOption = "default" | "satoshi" | "baloo2" | "outfit";
+
 export type Settings = {
   geminiKey: string;
   model: string;
@@ -164,6 +199,7 @@ export type Settings = {
   lightTheme: string;
   /** preset id used while in dark mode */
   darkTheme: string;
+  font?: FontOption;
   tunnelUrl?: string;
   streamSecret?: string;
 };
@@ -175,7 +211,8 @@ export const DEFAULT_SETTINGS: Settings = {
   spoilerFree: true,
   theme: "dark",
   lightTheme: "paper",
-  darkTheme: "koka",
+  darkTheme: "umi",
+  font: "default",
   tunnelUrl: "",
   streamSecret: "",
 };

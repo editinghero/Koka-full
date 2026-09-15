@@ -23,6 +23,7 @@ import {
 import { clearPin, isLocked } from "@/lib/pin";
 import { signOut } from "@/lib/auth.functions";
 import { Toaster } from "@/components/ui/sonner";
+import { initTapLock } from "@/lib/tap-lock";
 
 function NotFoundComponent() {
   return (
@@ -153,6 +154,11 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <HeadContent />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var c=localStorage.getItem("koka:cache");var f=localStorage.getItem("koka:font");if(!f&&c){var p0=JSON.parse(c);if(p0&&p0.settings&&p0.settings.font)f=p0.settings.font;}if(f)document.documentElement.setAttribute("data-font",f);if(c){var p=JSON.parse(c);if(p&&p.settings){var dark=p.settings.theme==="dark";var t=dark?(p.settings.darkTheme||"umi"):(p.settings.lightTheme||"paper");document.documentElement.classList.toggle("dark",dark);document.documentElement.setAttribute("data-theme",t);}}}catch(e){}`,
+          }}
+        />
       </head>
       <body suppressHydrationWarning>
         {children}
@@ -187,6 +193,7 @@ function AuthGate({ children }: { children: ReactNode }) {
     setMounted(true);
     setLocked(isLocked());
     applyThemeFromSettings();
+    initTapLock();
     void boot();
   }, []);
 

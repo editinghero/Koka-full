@@ -49,7 +49,8 @@ export async function ensureDbInitialized(): Promise<Client> {
       spoiler_free INTEGER NOT NULL DEFAULT 1,
       theme TEXT NOT NULL DEFAULT 'dark',
       light_theme TEXT NOT NULL DEFAULT 'paper',
-      dark_theme TEXT NOT NULL DEFAULT 'koka',
+      dark_theme TEXT NOT NULL DEFAULT 'umi',
+      font TEXT NOT NULL DEFAULT 'default',
       media_mode TEXT NOT NULL DEFAULT 'ANIME',
       anime_path TEXT NOT NULL DEFAULT './anime',
       manga_path TEXT NOT NULL DEFAULT './manga',
@@ -70,6 +71,8 @@ export async function ensureDbInitialized(): Promise<Client> {
       started_at TEXT,
       completed_at TEXT,
       repeat_count INTEGER,
+      is_rewatching INTEGER NOT NULL DEFAULT 0,
+      custom_links TEXT NOT NULL DEFAULT '[]',
       tags TEXT NOT NULL DEFAULT '[]',
       custom_lists TEXT NOT NULL DEFAULT '[]',
       media TEXT NOT NULL,
@@ -156,10 +159,23 @@ export async function ensureDbInitialized(): Promise<Client> {
 
   // Safe runtime migrations for existing databases
   try {
+    await client.execute("ALTER TABLE settings ADD COLUMN font TEXT NOT NULL DEFAULT 'default'");
+  } catch {}
+  try {
     await client.execute("ALTER TABLE settings ADD COLUMN tunnel_url TEXT");
   } catch {}
   try {
     await client.execute("ALTER TABLE settings ADD COLUMN stream_secret TEXT");
+  } catch {}
+  try {
+    await client.execute(
+      "ALTER TABLE library_entries ADD COLUMN is_rewatching INTEGER NOT NULL DEFAULT 0",
+    );
+  } catch {}
+  try {
+    await client.execute(
+      "ALTER TABLE library_entries ADD COLUMN custom_links TEXT NOT NULL DEFAULT '[]'",
+    );
   } catch {}
   try {
     await client.execute(

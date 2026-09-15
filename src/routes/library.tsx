@@ -112,14 +112,22 @@ function LibraryListRow({
     ? Math.min(100, Math.round((entry.progress / total) * 100))
     : 0;
 
+  const primaryLink =
+    (entry.customLinks ?? []).find((l) => l.isPrimary && l.url.trim()) ??
+    (entry.customLinks ?? []).find((l) => l.url.trim()) ??
+    null;
+
   return (
-    <div className="panel flex flex-col md:flex-row items-start md:items-center justify-between gap-3 p-3 transition-all duration-200 hover:border-primary/40 min-w-0 overflow-hidden">
+    <div
+      data-card-press
+      className="panel card-pressable flex flex-col md:flex-row items-start md:items-center justify-between gap-3 p-3 transition-all duration-150 active:scale-[0.99] active:opacity-90 hover:border-primary/40 min-w-0 overflow-hidden"
+    >
       {/* Cover & Title */}
       <div className="flex items-center gap-3 min-w-0 flex-1 w-full md:w-auto">
         <Link
           to="/anime/$id"
           params={{ id: String(media.id) }}
-          className="shrink-0 block overflow-hidden rounded"
+          className="shrink-0 block overflow-hidden rounded transition-opacity duration-150 active:opacity-80"
         >
           <Cover
             media={media}
@@ -131,7 +139,7 @@ function LibraryListRow({
             <Link
               to="/anime/$id"
               params={{ id: String(media.id) }}
-              className="truncate text-sm font-semibold hover:text-primary transition-colors block"
+              className="truncate text-sm font-semibold hover:text-primary transition-colors active:opacity-80 block"
             >
               {media.title}
             </Link>
@@ -219,6 +227,19 @@ function LibraryListRow({
           >
             <Plus className="h-3 w-3" />
           </Button>
+
+          {primaryLink ? (
+            <a
+              href={primaryLink.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={`Play (${primaryLink.label || "External"})`}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground active:scale-95"
+            >
+              <Play className="h-3 w-3" />
+            </a>
+          ) : null}
         </div>
 
         {/* Score */}
@@ -532,7 +553,7 @@ function LibraryPage() {
                   )
                 }
                 className={cn(
-                  "shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
+                  "shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] transition-all duration-150 active:scale-95 pill-pressable",
                   query.toLowerCase().replace(/^#/, "") === t.toLowerCase()
                     ? "border-primary bg-primary/10 font-medium text-primary"
                     : "border-border hover:border-primary hover:text-foreground",
@@ -549,7 +570,7 @@ function LibraryPage() {
             type="button"
             onClick={() => setDownloadedOnly((d) => !d)}
             className={cn(
-              "shrink-0 rounded-full border px-3 py-1 text-xs transition-colors whitespace-nowrap flex items-center gap-1.5",
+              "shrink-0 rounded-full border px-3 py-1 text-xs transition-all duration-150 active:scale-95 pill-pressable whitespace-nowrap flex items-center gap-1.5",
               downloadedOnly
                 ? "border-primary bg-primary text-primary-foreground font-medium"
                 : "border-border text-muted-foreground hover:text-foreground",
@@ -569,9 +590,9 @@ function LibraryPage() {
               key={s}
               onClick={() => setStatus(s)}
               className={cn(
-                "shrink-0 rounded-full border px-3 py-1 text-xs transition-colors whitespace-nowrap",
+                "shrink-0 rounded-full border px-3 py-1 text-xs transition-all duration-150 active:scale-95 pill-pressable whitespace-nowrap",
                 status === s
-                  ? "border-primary bg-primary text-primary-foreground"
+                  ? "border-primary bg-primary text-primary-foreground font-medium"
                   : "border-border text-muted-foreground hover:text-foreground",
               )}
             >

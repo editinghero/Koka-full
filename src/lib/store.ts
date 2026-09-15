@@ -1,12 +1,15 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import {
   DEFAULT_SETTINGS,
+  normalizeTags,
+  type FontOption,
   type LibraryEntry,
   type MediaType,
   type Note,
   type Settings,
   type WatchStatus,
 } from "./types";
+import { loadFontAssets } from "./fonts";
 import {
   getBootstrap,
   logImport as logImportFn,
@@ -97,15 +100,23 @@ export function applyThemeFromSettings(settingsOverride?: Settings) {
     }
     const dark = settings.theme === "dark";
     const preset = dark ? settings.darkTheme : settings.lightTheme;
+    const rawFont =
+      typeof window !== "undefined"
+        ? (window.localStorage.getItem("koka:font") as FontOption | null)
+        : null;
+    const font = settingsOverride?.font ?? settings.font ?? rawFont ?? "default";
     const root = document.documentElement;
     root.classList.toggle("dark", dark);
     root.dataset["theme"] = preset;
+    root.dataset["font"] = font;
     try {
       window.localStorage.setItem("koka:theme:mode", settings.theme);
       window.localStorage.setItem("koka:theme:preset", preset);
+      window.localStorage.setItem("koka:font", font);
     } catch {
       /* ignore */
     }
+    loadFontAssets(font);
   } catch {
     /* ignore */
   }
@@ -117,17 +128,22 @@ function hydrateFromCache() {
   hydratedFromCache = true;
   try {
     const raw = window.localStorage.getItem(CACHE_KEY);
-    if (!raw) {
+    const rawFont = window.localStorage.getItem("koka:font") as FontOption | null;
+    if (!raw && !rawFont) {
       state = { ...state, ready: true };
       applyThemeFromSettings(state.settings);
       return;
     }
-    const parsed = JSON.parse(raw) as Partial<State>;
+    const parsed = raw ? (JSON.parse(raw) as Partial<State>) : {};
     state = {
       ...state,
       ready: true,
       user: parsed.user ?? null,
-      settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
+      settings: {
+        ...DEFAULT_SETTINGS,
+        ...(parsed.settings ?? {}),
+        ...(rawFont ? { font: rawFont } : {}),
+      },
       mode: parsed.mode === "MANGA" ? "MANGA" : "ANIME",
       library: parsed.library ?? EMPTY_LIBRARY,
       notes: parsed.notes ?? EMPTY_NOTES,
@@ -148,6 +164,7 @@ export function clearCache() {
     window.localStorage.removeItem(CACHE_KEY);
     window.localStorage.removeItem("koka:theme:mode");
     window.localStorage.removeItem("koka:theme:preset");
+    window.localStorage.removeItem("koka:font");
   }
   state = {
     ready: true,
@@ -173,9 +190,20 @@ export function boot(force = false): Promise<void> {
         setState({ ready: true, user: null }, false);
         return;
       }
+      const fontFromData = data.settings?.font;
+      const localFont =
+        typeof window !== "undefined"
+          ? (window.localStorage.getItem("koka:font") as FontOption | null)
+          : null;
+      const currentFont =
+        fontFromData || localFont || state.settings.font || "default";
+      if (typeof window !== "undefined" && currentFont) {
+        window.localStorage.setItem("koka:font", currentFont);
+      }
       const resolvedSettings = {
         ...DEFAULT_SETTINGS,
         ...(data.settings ?? {}),
+        font: currentFont,
       };
       setState({
         ready: true,
@@ -291,12 +319,34 @@ export function useLibrary(forceMode?: MediaType) {
         (e) => e.media.id === entry.media.id && typeOf(e) === type,
       );
       const next = [...prev];
-      const merged =
-        idx === -1 ? entry : { ...next[idx], ...entry, updatedAt: Date.now() };
+      const existing = idx === -1 ? null : next[idx];
+      const tags =
+        existing && existing.tags && existing.tags.length > 0
+          ? entry.tags && entry.tags.length > 0
+            ? normalizeTags([...existing.tags, ...entry.tags])
+            : existing.tags
+          : (entry.tags ?? []);
+      const customLinks =
+        existing?.customLinks && existing.customLinks.length > 0
+          ? entry.customLinks && entry.customLinks.length > 0
+            ? entry.customLinks
+            : existing.customLinks
+          : (entry.customLinks ?? []);
+
+      const merged: LibraryEntry =
+        idx === -1
+          ? entry
+          : {
+              ...existing,
+              ...entry,
+              tags,
+              customLinks,
+              updatedAt: Date.now(),
+            };
       if (idx === -1) next.push(merged);
-      else next[idx] = merged as LibraryEntry;
+      else next[idx] = merged;
       setState({ library: next });
-      push([merged as LibraryEntry]);
+      push([merged]);
     },
     [push],
   );
@@ -318,16 +368,17 @@ export function useLibrary(forceMode?: MediaType) {
   );
 
   const remove = useCallback(
-    (id: number) => {
+    (id: number, explicitType?: MediaType) => {
+      const targetType = explicitType ?? mode;
       setState({
         library: state.library.filter(
-          (e) => !(e.media.id === id && typeOf(e) === mode),
+          (e) => !(e.media.id === id && typeOf(e) === targetType),
         ),
       });
       if (signedIn()) {
-        void removeEntry({ data: { mediaId: id, mediaType: mode } }).catch(
-          fail,
-        );
+        void removeEntry({
+          data: { mediaId: id, mediaType: targetType },
+        }).catch(fail);
       }
     },
     [mode],
@@ -342,9 +393,26 @@ export function useLibrary(forceMode?: MediaType) {
       for (const entry of entries) {
         const k = keyOf(typeOf(entry), entry.media.id);
         const existing = map.get(k);
+
+        // Tags: existing tags must NEVER be wiped on import
+        const existingTags = existing?.tags ?? [];
+        const incomingTags = entry.tags ?? [];
+        const tags =
+          existingTags.length > 0
+            ? normalizeTags([...existingTags, ...incomingTags])
+            : incomingTags;
+
+        // Custom links: existing links must NEVER be wiped on import
+        const customLinks =
+          existing?.customLinks && existing.customLinks.length > 0
+            ? existing.customLinks
+            : (entry.customLinks ?? []);
+
         const next = {
           ...existing,
           ...entry,
+          tags,
+          customLinks,
           media: { ...existing?.media, ...entry.media },
           addedAt: existing?.addedAt ?? entry.addedAt,
         } as LibraryEntry;
@@ -360,14 +428,35 @@ export function useLibrary(forceMode?: MediaType) {
   /** Replace every entry of the given media types with the incoming ones. */
   const replaceMany = useCallback(
     (entries: LibraryEntry[], types: MediaType[]) => {
+      const existingMap = new Map(
+        state.library.map((e) => [keyOf(typeOf(e), e.media.id), e]),
+      );
+      const sanitizedEntries = entries.map((entry) => {
+        const existing = existingMap.get(keyOf(typeOf(entry), entry.media.id));
+        if (!existing) return entry;
+        return {
+          ...entry,
+          tags:
+            existing.tags && existing.tags.length > 0
+              ? normalizeTags([...existing.tags, ...(entry.tags ?? [])])
+              : (entry.tags ?? []),
+          customLinks:
+            existing.customLinks && existing.customLinks.length > 0
+              ? existing.customLinks
+              : (entry.customLinks ?? []),
+        };
+      });
+
       setState({
         library: [
           ...state.library.filter((e) => !types.includes(typeOf(e))),
-          ...entries,
+          ...sanitizedEntries,
         ],
       });
       if (signedIn())
-        void replaceLibraryFn({ data: { entries, types } }).catch(fail);
+        void replaceLibraryFn({
+          data: { entries: sanitizedEntries, types },
+        }).catch(fail);
     },
     [],
   );
@@ -530,6 +619,9 @@ export function useSettings() {
   const s = useSnapshot();
   const update = useCallback((changes: Partial<Settings>) => {
     const settings = { ...state.settings, ...changes };
+    if (changes.font && typeof window !== "undefined") {
+      window.localStorage.setItem("koka:font", changes.font);
+    }
     setState({ settings });
     applyThemeFromSettings(settings);
     if (!signedIn()) return;
